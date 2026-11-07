@@ -4,3 +4,6 @@ _metadata/
 rules/local-root.json
 .DS_Store
 node_modules/
+xcuserdata/
+DerivedData/
+*.xcuserstate

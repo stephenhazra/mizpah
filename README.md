@@ -16,6 +16,29 @@ A Manifest V3 Chrome extension that blocks ads, trackers and annoyances.
 - **Automatic list updates** once a day, with an "Update now" button in Settings.
 - **Rebuild alerts** by Chrome notification, a "!" badge and a Settings banner when the built-in rules need refreshing.
 
+## Platforms
+
+| Browser | Package | Store |
+| --- | --- | --- |
+| Chrome (Windows, macOS, Linux, ChromeOS) | `dist/mizpah-<version>-chrome.zip` | Chrome Web Store |
+| Microsoft Edge (Windows, macOS) | same Chrome zip | Microsoft Edge Add-ons |
+| Firefox (desktop and Android) | `dist/mizpah-<version>-firefox.xpi` | Firefox Add-ons |
+| Safari (macOS, iOS, iPadOS) | Xcode project in `platforms/Mizpah` | Mac and iOS App Store |
+
+Chrome on iOS cannot run extensions, because Apple allows extensions only in Safari. Chrome on Android does not support extensions yet, so Android users get Mizpah through Firefox.
+
+Safari lacks a few APIs, so Mizpah adapts there. It detects pop-up tabs through tab events instead of navigation events, and it has no blocked-request count or notifications. Firefox shows no blocked-request count either.
+
+```bash
+node tools/package.mjs
+```
+
+```bash
+tools/safari.sh
+```
+
+The first builds the Chrome, Edge and Firefox packages. The second regenerates the Safari Xcode project. Publishing to the App Store needs a paid Apple Developer Program membership.
+
 ## Install
 
 1. Open `chrome://extensions`.

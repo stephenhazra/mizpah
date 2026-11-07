@@ -105,6 +105,8 @@ async function applyRulesets(settings) {
     disableRulesetIds: current.filter((id) => !active.includes(id))
   });
 
+  const dnr = chrome.declarativeNetRequest;
+  if (typeof dnr.updateStaticRules !== "function" || typeof dnr.getDisabledRuleIds !== "function") return;
   const { remoteDisabled = {} } = await chrome.storage.local.get("remoteDisabled");
   let budget = DISABLED_STATIC_LIMIT;
   for (const list of LISTS) {
@@ -181,16 +183,26 @@ async function applyContentScripts(settings) {
       }
     );
   }
-  await chrome.scripting.registerContentScripts(scripts);
+  try {
+    await chrome.scripting.registerContentScripts(scripts);
+  } catch {
+    for (const { persistAcrossSessions, ...script } of scripts) {
+      try {
+        await chrome.scripting.registerContentScripts([script]);
+      } catch (err) {
+        console.warn(`content script ${script.id} unsupported here`, err);
+      }
+    }
+  }
 }
 
 async function applyAll() {
   const settings = await getSettings();
   await Promise.all([applyDynamicRules(settings), applyRulesets(settings), applyContentScripts(settings)]);
-  await chrome.declarativeNetRequest.setExtensionActionOptions({
+  await chrome.declarativeNetRequest.setExtensionActionOptions?.({
     displayActionCountAsBadgeText: settings.enabled
   });
-  await chrome.action.setBadgeBackgroundColor({ color: "#c0392b" });
+  await chrome.action.setBadgeBackgroundColor?.({ color: "#c0392b" });
   await chrome.action.setTitle({ title: settings.enabled ? APP_NAME : `${APP_NAME} (paused)` });
 }
 
@@ -240,7 +252,12 @@ async function tokenSelectorsFor(hostname, tokens) {
 async function insertSelectors(tabId, frameId, selectors) {
   if (!selectors.length) return 0;
   const css = selectors.map((s) => `${s}{display:none!important}`).join("\n");
-  await chrome.scripting.insertCSS({ target: { tabId, frameIds: [frameId] }, css, origin: "USER" });
+  const target = { tabId, frameIds: [frameId] };
+  try {
+    await chrome.scripting.insertCSS({ target, css, origin: "USER" });
+  } catch {
+    await chrome.scripting.insertCSS({ target, css });
+  }
   return selectors.length;
 }
 
@@ -349,7 +366,7 @@ async function notifyRebuild(reasons) {
   await chrome.action.setBadgeText({ text: "!" });
   if (rebuildNotified === key) return;
   await chrome.storage.local.set({ rebuildNotified: key });
-  chrome.notifications.create(REBUILD_NOTIFICATION, {
+  chrome.notifications?.create(REBUILD_NOTIFICATION, {
     type: "basic",
     iconUrl: "icons/icon128.png",
     title: `${APP_NAME} needs a rebuild`,
@@ -431,6 +448,7 @@ async function inspectPopup(tabId, url) {
   if (!info.firstUrl) {
     info.firstUrl = url;
     info.firstDomain = domain;
+    info.intended = !!info.click && (info.click.href === url || hostOf(info.click.href) === host);
   }
   info.domains.add(domain);
   const matcher = await getPopupMatcher();
@@ -438,25 +456,40 @@ async function inspectPopup(tabId, url) {
   if (!info.intended && info.domains.size >= POPUP_HOP_LIMIT) return closePopup(tabId, info, "redirect chain");
 }
 
-chrome.webNavigation.onCreatedNavigationTarget.addListener(async (d) => {
+const trackedTabs = new Set();
+
+async function trackPopup(tabId, sourceTabId, url) {
+  if (trackedTabs.has(tabId)) return;
+  trackedTabs.add(tabId);
+  setTimeout(() => trackedTabs.delete(tabId), POPUP_WINDOW_MS);
   const settings = await getSettings();
   if (!settings.enabled || !settings.blockPopups) return;
   let openerUrl = "";
   try {
-    openerUrl = (await chrome.tabs.get(d.sourceTabId)).url || "";
+    openerUrl = (await chrome.tabs.get(sourceTabId)).url || "";
   } catch {}
   const openerHost = hostOf(openerUrl);
   if (!openerHost || isAllowlisted(openerHost, settings.allowlist)) return;
-  const click = lastClicks.get(d.sourceTabId);
-  const intended = !!click && Date.now() - click.time < 3000 && (click.href === d.url || hostOf(click.href) === hostOf(d.url));
-  const info = { sourceTabId: d.sourceTabId, openerHost, openerDomain: registrableDomain(openerHost), start: Date.now(), domains: new Set(), intended };
-  popupTabs.set(d.tabId, info);
-  const early = earlyRequests.get(d.tabId) || [];
-  earlyRequests.delete(d.tabId);
-  for (const url of [d.url, ...early]) await inspectPopup(d.tabId, url);
+  const recent = lastClicks.get(sourceTabId);
+  const click = recent && Date.now() - recent.time < 3000 ? recent : null;
+  const info = { sourceTabId, openerHost, openerDomain: registrableDomain(openerHost), start: Date.now(), domains: new Set(), click, intended: false };
+  popupTabs.set(tabId, info);
+  const early = earlyRequests.get(tabId) || [];
+  earlyRequests.delete(tabId);
+  for (const u of [url, ...early].filter(Boolean)) await inspectPopup(tabId, u);
+}
+
+chrome.webNavigation?.onCreatedNavigationTarget?.addListener((d) => trackPopup(d.tabId, d.sourceTabId, d.url));
+
+chrome.tabs.onCreated.addListener((tab) => {
+  if (tab.openerTabId != null && tab.id != null) trackPopup(tab.id, tab.openerTabId, tab.pendingUrl || (tab.url !== "about:blank" ? tab.url : ""));
 });
 
-chrome.webRequest.onBeforeRequest.addListener(
+chrome.tabs.onUpdated.addListener((tabId, change) => {
+  if (change.url && popupTabs.has(tabId)) inspectPopup(tabId, change.url);
+});
+
+chrome.webRequest?.onBeforeRequest.addListener(
   (d) => {
     if (d.tabId < 0) return;
     if (popupTabs.has(d.tabId)) {
@@ -471,7 +504,7 @@ chrome.webRequest.onBeforeRequest.addListener(
   { urls: ["<all_urls>"], types: ["main_frame"] }
 );
 
-chrome.webNavigation.onCommitted.addListener((d) => {
+chrome.webNavigation?.onCommitted.addListener((d) => {
   if (d.frameId === 0 && popupTabs.has(d.tabId)) inspectPopup(d.tabId, d.url);
   if (d.frameId === 0 && d.transitionType !== "auto_subframe") popupCounts.delete(d.tabId);
 });
@@ -591,7 +624,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (Object.keys(changes).some((k) => k in DEFAULTS || REMOTE_KEYS.includes(k))) queueApply();
 });
 
-chrome.notifications.onClicked.addListener((id) => {
+chrome.notifications?.onClicked.addListener((id) => {
   if (id === REBUILD_NOTIFICATION) {
     chrome.runtime.openOptionsPage();
     chrome.notifications.clear(id);
