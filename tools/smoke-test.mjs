@@ -51,7 +51,10 @@ async function attach(url) {
     await send("Page.reload", {}, sessionId);
     await sleep(2500);
   };
-  return { ev, reload };
+  const click = async () => {
+    for (const type of ["mousePressed", "mouseReleased"]) await send("Input.dispatchMouseEvent", { type, x: 40, y: 40, button: "left", clickCount: 1 }, sessionId);
+  };
+  return { ev, reload, click };
 }
 
 let failures = 0;
@@ -150,6 +153,15 @@ try {
     check("settings rebuild banner", await opt2.ev("!document.getElementById('rebuildBanner').hidden"), EXPECT_REBUILD);
     if (EXPECT_REBUILD) console.log(`      banner command: ${JSON.stringify(await opt2.ev("document.getElementById('rebuildCmd').textContent"))}`);
   }
+
+  await set({ enabled: true, enabledLists: ["ads", "trackers", "annoyances"], blockPopups: true, allowlist: [] });
+  await page.reload();
+  await page.click();
+  await sleep(200);
+  const tabId = await ev(`chrome.tabs.create({ url: "https://example.org/?x=1&popunder=1", active: true }).then((t) => t.id)`);
+  await sleep(4000);
+  check("new tab opened after a page click stays open", await ev(`chrome.tabs.get(${tabId}).then(() => true, () => false)`), true);
+  await ev(`chrome.tabs.remove(${tabId}).catch(() => {})`);
 
   const yt = await attach("https://www.youtube.com/");
   check("youtube ad data stripped", await yt.ev(`JSON.stringify(JSON.parse('{"adPlacements":[1],"playerAds":[2],"videoDetails":{}}'))`), '{"videoDetails":{}}');
