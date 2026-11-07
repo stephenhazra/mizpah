@@ -7,4 +7,5 @@ xcrun safari-web-extension-converter dist/safari \
   --app-name Mizpah \
   --bundle-identifier io.github.stephenhazra.mizpah \
   --swift --copy-resources --no-open --no-prompt --force
-echo "Open platforms/Mizpah/Mizpah.xcodeproj in Xcode, choose your team under Signing, then build the macOS and iOS schemes."
+python3 tools/apple-setup.py
+echo "Open platforms/Mizpah/Mizpah.xcodeproj in Xcode, choose your team under Signing, then use Product > Archive for each scheme."

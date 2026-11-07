@@ -3,18 +3,37 @@
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'">
-
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-
     <link rel="stylesheet" href="../Style.css">
     <script src="../Script.js" defer></script>
 </head>
 <body>
-    <img src="../Icon.png" width="128" height="128" alt="Mizpah Icon">
-    <p class="platform-ios">You can turn on Mizpah’s Safari extension in Settings.</p>
-    <p class="platform-mac state-unknown">You can turn on Mizpah’s extension in Safari Extensions preferences.</p>
-    <p class="platform-mac state-on">Mizpah’s extension is currently on. You can turn it off in Safari Extensions preferences.</p>
-    <p class="platform-mac state-off">Mizpah’s extension is currently off. You can turn it on in Safari Extensions preferences.</p>
-    <button class="platform-mac open-preferences">Quit and Open Safari Extensions Preferences…</button>
+    <main>
+        <img src="../Icon.png" width="96" height="96" alt="">
+        <h1>Mizpah Ad Blocker</h1>
+        <p class="lead">Blocks ads, trackers, pop-ups and cookie banners in Safari. It collects no data.</p>
+
+        <section class="platform-ios">
+            <h2>Turn it on</h2>
+            <ol>
+                <li>Open the <b>Settings</b> app.</li>
+                <li>Go to <b>Apps</b> › <b>Safari</b> › <b>Extensions</b>.</li>
+                <li>Tap <b>Mizpah Ad Blocker</b> and turn on <b>Allow Extension</b>.</li>
+                <li>Set <b>All Websites</b> to <b>Allow</b> so it can block ads everywhere.</li>
+            </ol>
+            <p class="note">Open Safari and tap the puzzle-piece icon to see what was blocked or to pause Mizpah on a site.</p>
+        </section>
+
+        <section class="platform-mac">
+            <p class="status state-unknown">Turn on Mizpah in the Extensions section of Safari Settings.</p>
+            <p class="status state-on"><span class="dot on"></span>Mizpah is on in Safari.</p>
+            <p class="status state-off"><span class="dot off"></span>Mizpah is off. Turn it on in the Extensions section of Safari Settings.</p>
+            <ol>
+                <li>Tick <b>Mizpah Ad Blocker</b> in Safari Settings › Extensions.</li>
+                <li>Click <b>Edit Websites…</b> and set <b>Other Websites</b> to <b>Allow</b>.</li>
+            </ol>
+            <button class="open-preferences">Quit and Open Safari Settings…</button>
+        </section>
+    </main>
 </body>
 </html>

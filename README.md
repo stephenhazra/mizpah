@@ -37,7 +37,7 @@ node tools/package.mjs
 tools/safari.sh
 ```
 
-The first builds the Chrome, Edge and Firefox packages. The second regenerates the Safari Xcode project. Publishing to the App Store needs a paid Apple Developer Program membership.
+The first builds the Chrome, Edge and Firefox packages. The second regenerates the Safari Xcode project. Publishing to the App Store needs a paid Apple Developer Program membership. The App Store listing, screenshots in `store/apple/` and the build and upload steps are in [store/app-store.md](store/app-store.md). Regenerate the App Store screenshots with `node tools/apple-assets.mjs`.
 
 ## Install
 
