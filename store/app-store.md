@@ -100,7 +100,7 @@ Upload from `store/apple/`:
 
 | Device slot | Files |
 | --- | --- |
-| iPhone 6.9" display | iphone-1.jpg, iphone-2.png, iphone-3.png |
+| iPhone with Dynamic Island (medium display) | iphone-1.jpg, iphone-2.png, iphone-3.png |
 | iPad 13" display | ipad-1.jpg, ipad-2.png, ipad-3.png |
 | Mac | mac-1.png, mac-2.png, mac-3.png |
 

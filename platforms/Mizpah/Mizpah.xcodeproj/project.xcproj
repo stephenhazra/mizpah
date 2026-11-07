@@ -216,18 +216,18 @@
       "kind": "group",
       "name": "Products",
       "children": [
-        { "path": "<PRODUCTS>/Mizpah.app", "id": "6FFD9DE0309F045A00095633", "type": "wrapper.application", "index": false },
-        { "path": "<PRODUCTS>/Mizpah.app", "id": "6FFD9DF2309F045A00095633", "type": "wrapper.application", "index": false },
-        { "path": "<PRODUCTS>/Mizpah Extension.appex", "id": "6FFD9DFE309F045A00095633", "type": "wrapper.app-extension", "index": false, "target-membership": [ { "build-phase": "Mizpah (iOS)/copy/Embed Foundation Extensions", "header-preservation": "remove-on-copy" } ] },
-        { "path": "<PRODUCTS>/Mizpah Extension.appex", "id": "6FFD9E08309F045A00095633", "type": "wrapper.app-extension", "index": false, "target-membership": [ { "build-phase": "Mizpah (macOS)/copy/Embed Foundation Extensions", "header-preservation": "remove-on-copy" } ] },
+        { "path": "<PRODUCTS>/Mizpah.app", "id": "6F1A98CB309F13B000B650C1", "type": "wrapper.application", "index": false },
+        { "path": "<PRODUCTS>/Mizpah.app", "id": "6F1A98DD309F13B000B650C1", "type": "wrapper.application", "index": false },
+        { "path": "<PRODUCTS>/Mizpah Extension.appex", "id": "6F1A98E9309F13B000B650C1", "type": "wrapper.app-extension", "index": false, "target-membership": [ { "build-phase": "Mizpah (iOS)/copy/Embed Foundation Extensions", "header-preservation": "remove-on-copy" } ] },
+        { "path": "<PRODUCTS>/Mizpah Extension.appex", "id": "6F1A98F3309F13B000B650C1", "type": "wrapper.app-extension", "index": false, "target-membership": [ { "build-phase": "Mizpah (macOS)/copy/Embed Foundation Extensions", "header-preservation": "remove-on-copy" } ] },
       ],
     },
   ],
   "targets": [
     {
       "name": "Mizpah (iOS)",
-      "id": "6FFD9DDF309F045A00095633",
-      "product": "id:6FFD9DE0309F045A00095633",
+      "id": "6F1A98CA309F13B000B650C1",
+      "product": "id:6F1A98CB309F13B000B650C1",
       "product-type": "application",
       "dependencies": [
         "Mizpah Extension (iOS)",
@@ -246,7 +246,7 @@
         "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
         "ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME": "AccentColor",
         "CODE_SIGN_STYLE": "Automatic",
-        "CURRENT_PROJECT_VERSION": "1",
+        "CURRENT_PROJECT_VERSION": "2",
         "GENERATE_INFOPLIST_FILE": "YES",
         "INFOPLIST_FILE": "iOS (App)/Info.plist",
         "INFOPLIST_KEY_CFBundleDisplayName": "Mizpah",
@@ -284,8 +284,8 @@
       },
     }, {
       "name": "Mizpah (macOS)",
-      "id": "6FFD9DF1309F045A00095633",
-      "product": "id:6FFD9DF2309F045A00095633",
+      "id": "6F1A98DC309F13B000B650C1",
+      "product": "id:6F1A98DD309F13B000B650C1",
       "product-type": "application",
       "dependencies": [
         "Mizpah Extension (macOS)",
@@ -304,7 +304,7 @@
         "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
         "ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME": "AccentColor",
         "CODE_SIGN_STYLE": "Automatic",
-        "CURRENT_PROJECT_VERSION": "1",
+        "CURRENT_PROJECT_VERSION": "2",
         "ENABLE_APP_SANDBOX": "YES",
         "ENABLE_HARDENED_RUNTIME": "YES",
         "GENERATE_INFOPLIST_FILE": "YES",
@@ -340,8 +340,8 @@
       },
     }, {
       "name": "Mizpah Extension (iOS)",
-      "id": "6FFD9DFD309F045A00095633",
-      "product": "id:6FFD9DFE309F045A00095633",
+      "id": "6F1A98E8309F13B000B650C1",
+      "product": "id:6F1A98E9309F13B000B650C1",
       "product-type": "app-extension",
       "build-phases": [
         "compile-sources",
@@ -350,7 +350,7 @@
       ],
       "build-settings": {
         "CODE_SIGN_STYLE": "Automatic",
-        "CURRENT_PROJECT_VERSION": "1",
+        "CURRENT_PROJECT_VERSION": "2",
         "GENERATE_INFOPLIST_FILE": "YES",
         "INFOPLIST_FILE": "iOS (Extension)/Info.plist",
         "INFOPLIST_KEY_CFBundleDisplayName": "Mizpah Extension",
@@ -379,8 +379,8 @@
       },
     }, {
       "name": "Mizpah Extension (macOS)",
-      "id": "6FFD9E07309F045A00095633",
-      "product": "id:6FFD9E08309F045A00095633",
+      "id": "6F1A98F2309F13B000B650C1",
+      "product": "id:6F1A98F3309F13B000B650C1",
       "product-type": "app-extension",
       "build-phases": [
         "compile-sources",
@@ -389,7 +389,7 @@
       ],
       "build-settings": {
         "CODE_SIGN_STYLE": "Automatic",
-        "CURRENT_PROJECT_VERSION": "1",
+        "CURRENT_PROJECT_VERSION": "2",
         "ENABLE_APP_SANDBOX": "YES",
         "ENABLE_HARDENED_RUNTIME": "YES",
         "GENERATE_INFOPLIST_FILE": "YES",

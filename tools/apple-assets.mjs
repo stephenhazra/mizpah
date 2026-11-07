@@ -116,8 +116,8 @@ try {
   const macPng = join(WORK, "mac-app.png");
   await mac.shot(macPng);
 
-  await compose("iphone-2", 1320, 2868, ...popupScreen(1320, 2868, img, 900, blocked, host, 1.25));
-  await compose("iphone-3", 1320, 2868, ...chartScreen(1320, 2868, 1.2, true));
+  await compose("iphone-2", 1206, 2622, ...popupScreen(1206, 2622, img, 820, blocked, host, 1.14));
+  await compose("iphone-3", 1206, 2622, ...chartScreen(1206, 2622, 1.1, true));
   await compose("ipad-2", 2064, 2752, ...popupScreen(2064, 2752, img, 1000, blocked, host, 1.5));
   await compose("ipad-3", 2064, 2752, ...chartScreen(2064, 2752, 1.6, false));
   await compose("mac-1", 2880, 1800, `
