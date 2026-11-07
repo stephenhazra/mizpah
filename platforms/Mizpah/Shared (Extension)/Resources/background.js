@@ -835,12 +835,25 @@ async function trackPopup(tabId, sourceTabId, url) {
 
 chrome.webNavigation?.onCreatedNavigationTarget?.addListener((d) => trackPopup(d.tabId, d.sourceTabId, d.url));
 
+function recentClickTab(excludeId) {
+  let best = null;
+  for (const [tabId, click] of lastClicks) {
+    if (tabId === excludeId || Date.now() - click.time > 2500) continue;
+    if (!best || click.time > best.time) best = { tabId, time: click.time };
+  }
+  return best?.tabId ?? null;
+}
+
 chrome.tabs.onCreated.addListener((tab) => {
-  if (tab.openerTabId != null && tab.id != null) trackPopup(tab.id, tab.openerTabId, tab.pendingUrl || (tab.url !== "about:blank" ? tab.url : ""));
+  if (tab.id == null) return;
+  const opener = tab.openerTabId ?? recentClickTab(tab.id);
+  if (opener != null) trackPopup(tab.id, opener, tab.pendingUrl || (tab.url && tab.url !== "about:blank" ? tab.url : ""));
 });
 
 chrome.tabs.onUpdated.addListener((tabId, change) => {
-  if (change.url && popupTabs.has(tabId)) inspectPopup(tabId, change.url);
+  if (!change.url) return;
+  if (popupTabs.has(tabId)) inspectPopup(tabId, change.url);
+  else if (trackedTabs.has(tabId)) earlyRequests.set(tabId, [...(earlyRequests.get(tabId) || []), change.url].slice(-5));
 });
 
 chrome.webRequest?.onBeforeRequest.addListener(
@@ -886,7 +899,7 @@ const handlers = {
     return insertSelectors(sender.tab.id, sender.frameId ?? 0, await tokenSelectorsFor(msg.hostname, msg.tokens));
   },
   async userClick(msg, sender) {
-    if (sender.tab && typeof msg.href === "string") lastClicks.set(sender.tab.id, { href: msg.href, time: Date.now() });
+    if (sender.tab) lastClicks.set(sender.tab.id, { href: typeof msg.href === "string" ? msg.href : null, time: Date.now(), windowId: sender.tab.windowId });
     return true;
   },
   async toggleStrictPopups({ hostname, strict }) {

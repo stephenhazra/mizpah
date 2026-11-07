@@ -6,15 +6,18 @@
   const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => {});
   send({ type: "cosmetic", hostname });
 
+  const intendedHref = (e) => {
+    const a = e.target?.closest?.("a[href]");
+    if (!a) return null;
+    const newTab = /^_?blank$/i.test(a.target || "") || e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey;
+    if (!newTab) return null;
+    const r = a.getBoundingClientRect();
+    if (r.width < 4 || r.height < 4 || getComputedStyle(a).opacity === "0") return null;
+    return a.href;
+  };
   const reportClick = (e) => {
     if (!e.isTrusted) return;
-    const a = e.target?.closest?.("a[href]");
-    if (!a) return;
-    const newTab = /^_?blank$/i.test(a.target || "") || e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey;
-    if (!newTab) return;
-    const r = a.getBoundingClientRect();
-    if (r.width < 4 || r.height < 4 || getComputedStyle(a).opacity === "0") return;
-    send({ type: "userClick", href: a.href });
+    send({ type: "userClick", href: intendedHref(e) });
   };
   document.addEventListener("click", reportClick, true);
   document.addEventListener("auxclick", reportClick, true);
