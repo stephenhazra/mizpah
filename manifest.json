@@ -3,7 +3,7 @@
   "name": "Mizpah Ad Blocker",
   "short_name": "Mizpah",
   "version": "1.0.0",
-  "description": "Blocks ads, trackers, pop-ups and cookie banners. Fast, private, and built on EasyList with daily filter updates.",
+  "description": "Blocks ads, trackers, pop-ups and cookie banners. Fast, private, built on EasyList with daily filter updates.",
   "minimum_chrome_version": "121",
   "permissions": [
     "declarativeNetRequest",

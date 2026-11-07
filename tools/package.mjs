@@ -19,7 +19,7 @@ const info = JSON.parse(await readFile(join(root, "rules", "build-info.json"), "
 const problems = [];
 if (!info.remote) problems.push("rules were built without --remote, run: node tools/build-rules.mjs --remote");
 if (Date.now() - info.builtAt > 7 * 86400000) problems.push("rules are over a week old, run: node tools/build-rules.mjs --remote");
-if (manifest.description.length > 132) problems.push(`manifest description is ${manifest.description.length} chars, the store limit is 132`);
+if (manifest.description.length > 112) problems.push(`manifest description is ${manifest.description.length} chars, the Safari limit is 112`);
 if (manifest.update_url) problems.push("manifest must not contain update_url");
 if (problems.length && !args.includes("--force")) {
   console.error("Not packaging:\n- " + problems.join("\n- ") + "\nRe-run with --force to package anyway.");

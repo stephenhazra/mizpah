@@ -8,9 +8,9 @@ Paste these into the Developer Dashboard.
 
 **Language:** English
 
-**Summary** (from manifest, 113 of 132 characters)
+**Summary** (from manifest, 109 of 132 characters)
 
-Blocks ads, trackers, pop-ups and cookie banners. Fast, private, and built on EasyList with daily filter updates.
+Blocks ads, trackers, pop-ups and cookie banners. Fast, private, built on EasyList with daily filter updates.
 
 **Description**
 

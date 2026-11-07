@@ -216,18 +216,18 @@
       "kind": "group",
       "name": "Products",
       "children": [
-        { "path": "<PRODUCTS>/Mizpah.app", "id": "6F72AC27309EFFD4003D4C14", "type": "wrapper.application", "index": false },
-        { "path": "<PRODUCTS>/Mizpah.app", "id": "6F72AC39309EFFD4003D4C14", "type": "wrapper.application", "index": false },
-        { "path": "<PRODUCTS>/Mizpah Extension.appex", "id": "6F72AC45309EFFD4003D4C14", "type": "wrapper.app-extension", "index": false, "target-membership": [ { "build-phase": "Mizpah (iOS)/copy/Embed Foundation Extensions", "header-preservation": "remove-on-copy" } ] },
-        { "path": "<PRODUCTS>/Mizpah Extension.appex", "id": "6F72AC4F309EFFD4003D4C14", "type": "wrapper.app-extension", "index": false, "target-membership": [ { "build-phase": "Mizpah (macOS)/copy/Embed Foundation Extensions", "header-preservation": "remove-on-copy" } ] },
+        { "path": "<PRODUCTS>/Mizpah.app", "id": "6FFD9DE0309F045A00095633", "type": "wrapper.application", "index": false },
+        { "path": "<PRODUCTS>/Mizpah.app", "id": "6FFD9DF2309F045A00095633", "type": "wrapper.application", "index": false },
+        { "path": "<PRODUCTS>/Mizpah Extension.appex", "id": "6FFD9DFE309F045A00095633", "type": "wrapper.app-extension", "index": false, "target-membership": [ { "build-phase": "Mizpah (iOS)/copy/Embed Foundation Extensions", "header-preservation": "remove-on-copy" } ] },
+        { "path": "<PRODUCTS>/Mizpah Extension.appex", "id": "6FFD9E08309F045A00095633", "type": "wrapper.app-extension", "index": false, "target-membership": [ { "build-phase": "Mizpah (macOS)/copy/Embed Foundation Extensions", "header-preservation": "remove-on-copy" } ] },
       ],
     },
   ],
   "targets": [
     {
       "name": "Mizpah (iOS)",
-      "id": "6F72AC26309EFFD4003D4C14",
-      "product": "id:6F72AC27309EFFD4003D4C14",
+      "id": "6FFD9DDF309F045A00095633",
+      "product": "id:6FFD9DE0309F045A00095633",
       "product-type": "application",
       "dependencies": [
         "Mizpah Extension (iOS)",
@@ -284,8 +284,8 @@
       },
     }, {
       "name": "Mizpah (macOS)",
-      "id": "6F72AC38309EFFD4003D4C14",
-      "product": "id:6F72AC39309EFFD4003D4C14",
+      "id": "6FFD9DF1309F045A00095633",
+      "product": "id:6FFD9DF2309F045A00095633",
       "product-type": "application",
       "dependencies": [
         "Mizpah Extension (macOS)",
@@ -340,8 +340,8 @@
       },
     }, {
       "name": "Mizpah Extension (iOS)",
-      "id": "6F72AC44309EFFD4003D4C14",
-      "product": "id:6F72AC45309EFFD4003D4C14",
+      "id": "6FFD9DFD309F045A00095633",
+      "product": "id:6FFD9DFE309F045A00095633",
       "product-type": "app-extension",
       "build-phases": [
         "compile-sources",
@@ -379,8 +379,8 @@
       },
     }, {
       "name": "Mizpah Extension (macOS)",
-      "id": "6F72AC4E309EFFD4003D4C14",
-      "product": "id:6F72AC4F309EFFD4003D4C14",
+      "id": "6FFD9E07309F045A00095633",
+      "product": "id:6FFD9E08309F045A00095633",
       "product-type": "app-extension",
       "build-phases": [
         "compile-sources",
