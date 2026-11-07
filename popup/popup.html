@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Ad blocker</title>
+  <link rel="stylesheet" href="../options/theme.css">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <div class="brand"><img src="../icons/icon32.png" alt="" width="20" height="20"> <span class="app-name"></span></div>
+    <label class="switch" title="Pause or resume all blocking">
+      <input type="checkbox" id="power">
+      <span></span>
+    </label>
+  </header>
+  <main>
+    <button class="warn" id="rebuild" hidden>Filter rules need a rebuild. Open Settings.</button>
+    <section class="site">
+      <div class="host" id="host">—</div>
+      <div class="count"><span id="blocked">—</span><small>requests blocked on this page</small></div>
+      <div class="popups" id="popups" hidden></div>
+      <button id="toggleSite" class="primary"></button>
+      <p class="note" id="note" hidden>Reload the page to apply the change.</p>
+    </section>
+    <div class="actions">
+      <button id="strictPopups" class="wide"></button>
+      <button id="picker">Hide an element</button>
+      <button id="reload">Reload page</button>
+      <button id="options">Settings</button>
+    </div>
+  </main>
+  <footer id="status"></footer>
+  <script src="popup.js" type="module"></script>
+</body>
+</html>

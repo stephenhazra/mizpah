@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Settings</title>
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main>
+    <h1><img src="../icons/icon48.png" alt="" width="28" height="28"> <span><span class="app-name"></span> settings</span></h1>
+
+    <section class="banner" id="rebuildBanner" hidden>
+      <h2>Rebuild needed</h2>
+      <ul id="rebuildReasons"></ul>
+      <p>Chrome only lets an extension replace its built-in rules when it is rebuilt. Run these in Terminal, then click the reload icon for <span class="app-name"></span> on <code>chrome://extensions</code>.</p>
+      <pre id="rebuildCmd"></pre>
+      <div class="bar"><button id="copyCmd">Copy commands</button><span id="copyStatus"></span></div>
+    </section>
+
+    <section>
+      <h2>Filter lists</h2>
+      <div class="update">
+        <div><strong>List updates</strong><p id="updateInfo">Never updated since install</p></div>
+        <button id="updateNow">Update now</button>
+      </div>
+      <label class="row">
+        <div><strong>Update automatically</strong><p>Download fresh EasyList, EasyPrivacy and Fanboy Annoyance rules once a day.</p></div>
+        <span class="switch"><input type="checkbox" id="autoUpdate"><span></span></span>
+      </label>
+      <div id="lists"></div>
+      <label class="row">
+        <div><strong>Pop-up blocking</strong><p id="popupInfo">Closes pop-up and pop-under ad tabs.</p></div>
+        <span class="switch"><input type="checkbox" id="blockPopups"><span></span></span>
+      </label>
+      <label class="row">
+        <div><strong>YouTube ad removal</strong><p>Strips ad data from the player and skips any ads that still play.</p></div>
+        <span class="switch"><input type="checkbox" id="youtube"><span></span></span>
+      </label>
+    </section>
+
+    <section>
+      <h2>Trusted sites</h2>
+      <p>Blocking is off on these domains and their subdomains. One per line.</p>
+      <textarea id="allowlist" rows="6" spellcheck="false" placeholder="example.com"></textarea>
+      <div class="bar"><button class="primary" id="saveAllowlist">Save trusted sites</button><span id="allowStatus"></span></div>
+    </section>
+
+    <section>
+      <h2>Strict pop-up sites</h2>
+      <p>Pages on these domains can't open new windows at all. One per line.</p>
+      <textarea id="strictPopupSites" rows="4" spellcheck="false" placeholder="example.com"></textarea>
+      <div class="bar"><button class="primary" id="saveStrict">Save strict sites</button><span id="strictStatus"></span></div>
+    </section>
+
+    <section>
+      <h2>My filters</h2>
+      <p>Adblock Plus / uBlock Origin syntax. Supports <code>||domain^</code>, <code>@@</code> exceptions, <code>$third-party</code>, <code>$script</code>, <code>$domain=</code>, <code>##selector</code> and <code>site.com##selector</code>.</p>
+      <textarea id="custom" rows="12" spellcheck="false" placeholder="||annoying-ads.example^&#10;example.com##.sticky-promo"></textarea>
+      <div class="bar"><button class="primary" id="saveCustom">Save filters</button><span id="customStatus"></span></div>
+    </section>
+
+    <section>
+      <h2>Backup</h2>
+      <div class="bar">
+        <button id="export">Export settings</button>
+        <button id="import">Import settings</button>
+        <input type="file" id="importFile" accept="application/json" hidden>
+        <span id="backupStatus"></span>
+      </div>
+    </section>
+  </main>
+  <script src="options.js" type="module"></script>
+</body>
+</html>
