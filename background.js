@@ -16,6 +16,8 @@ const DEFAULTS = {
 };
 const REMOTE_KEYS = ["remoteNetwork", "remoteDisabled"];
 const POPUP_WINDOW_MS = 15000;
+const INFERRED_POPUP_MS = 2000;
+const HAS_OPENER_EVENTS = !!chrome.webNavigation?.onCreatedNavigationTarget;
 const POPUP_HOP_LIMIT = 3;
 const LEARNED_POPUP_LIMIT = 1000;
 const DYNAMIC_LIMIT = 30000;
@@ -437,7 +439,7 @@ async function closePopup(tabId, info, reason) {
 async function inspectPopup(tabId, url) {
   const info = popupTabs.get(tabId);
   if (!info || info.closed) return;
-  if (Date.now() - info.start > POPUP_WINDOW_MS) {
+  if (Date.now() - info.start > POPUP_WINDOW_MS || (info.inferred && !info.firstUrl && Date.now() - info.start > INFERRED_POPUP_MS)) {
     popupTabs.delete(tabId);
     return;
   }
@@ -458,7 +460,7 @@ async function inspectPopup(tabId, url) {
 
 const trackedTabs = new Set();
 
-async function trackPopup(tabId, sourceTabId, url) {
+async function trackPopup(tabId, sourceTabId, url, inferred = false) {
   if (trackedTabs.has(tabId)) return;
   trackedTabs.add(tabId);
   setTimeout(() => trackedTabs.delete(tabId), POPUP_WINDOW_MS);
@@ -472,7 +474,7 @@ async function trackPopup(tabId, sourceTabId, url) {
   if (!openerHost || isAllowlisted(openerHost, settings.allowlist)) return;
   const recent = lastClicks.get(sourceTabId);
   const click = recent && Date.now() - recent.time < 3000 ? recent : null;
-  const info = { sourceTabId, openerHost, openerDomain: registrableDomain(openerHost), start: Date.now(), domains: new Set(), click, intended: false };
+  const info = { sourceTabId, openerHost, openerDomain: registrableDomain(openerHost), start: Date.now(), domains: new Set(), click, intended: false, inferred };
   popupTabs.set(tabId, info);
   const early = earlyRequests.get(tabId) || [];
   earlyRequests.delete(tabId);
@@ -491,9 +493,10 @@ function recentClickTab(excludeId) {
 }
 
 chrome.tabs.onCreated.addListener((tab) => {
-  if (tab.id == null) return;
-  const opener = tab.openerTabId ?? recentClickTab(tab.id);
-  if (opener != null) trackPopup(tab.id, opener, tab.pendingUrl || (tab.url && tab.url !== "about:blank" ? tab.url : ""));
+  if (tab.id == null || HAS_OPENER_EVENTS) return;
+  const inferred = tab.openerTabId == null;
+  const opener = inferred ? recentClickTab(tab.id) : tab.openerTabId;
+  if (opener != null) trackPopup(tab.id, opener, tab.pendingUrl || (tab.url && tab.url !== "about:blank" ? tab.url : ""), inferred);
 });
 
 chrome.tabs.onUpdated.addListener((tabId, change) => {
