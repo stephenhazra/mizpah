@@ -12,11 +12,13 @@ function render() {
   document.body.classList.toggle("paused", !state.enabled);
   $("power").checked = state.enabled;
   $("host").textContent = state.hostname || "This page can't be filtered";
-  $("blocked").textContent = state.blocked ?? "—";
+  $("host").title = state.hostname || "";
+  $("blocked").closest(".count").hidden = state.blocked == null;
+  $("blocked").textContent = state.blocked ?? "";
   const btn = $("toggleSite");
   btn.hidden = !state.hostname;
   btn.disabled = !state.enabled;
-  btn.textContent = state.allowlisted ? "Blocking off for this site" : "Blocking on for this site";
+  btn.textContent = state.allowlisted ? "Stop trusting this site" : "Trust this site";
   btn.classList.toggle("off", state.allowlisted);
   $("picker").disabled = !state.hostname || !state.enabled || state.allowlisted;
   $("popups").hidden = !state.popupsClosed;
@@ -24,16 +26,37 @@ function render() {
   const strict = $("strictPopups");
   strict.hidden = !state.hostname;
   strict.disabled = !state.enabled || state.allowlisted;
-  strict.textContent = state.strictPopups ? "All pop-ups blocked on this site" : "Block all pop-ups on this site";
+  strict.setAttribute("aria-pressed", String(!!state.strictPopups));
   strict.classList.toggle("on", state.strictPopups);
   $("rebuild").hidden = !state.rebuild?.length;
-  $("status").textContent = state.enabled ? "" : "Blocking is paused everywhere";
+  $("status").textContent = !state.enabled ? "Blocking is paused everywhere" : state.hostname && state.allowlisted ? "Hide an element and pop-up blocking are unavailable on trusted sites" : "";
+}
+
+async function checkHostAccess() {
+  if (!state?.hostname || !state.enabled || state.allowlisted) return;
+  const origin = `${new URL(tab.url).origin}/*`;
+  const granted = await chrome.permissions.contains({ origins: [origin] }).catch(() => true);
+  $("hostAccess").hidden = granted;
 }
 
 async function refresh() {
-  state = await send({ type: "popupState", tabId: tab.id, url: tab.url || "" });
+  const reply = await send({ type: "popupState", tabId: tab.id, url: tab.url || "" }).catch((err) => ({ error: String(err) }));
+  if (reply?.error) {
+    $("status").textContent = `${APP_NAME} couldn't read this tab: ${reply.error}`;
+    return;
+  }
+  state = reply;
   render();
+  await checkHostAccess();
 }
+
+$("grantAccess").addEventListener("click", async () => {
+  const granted = await chrome.permissions.request({ origins: [`${new URL(tab.url).origin}/*`] }).catch(() => false);
+  if (granted) {
+    $("hostAccess").hidden = true;
+    $("note").hidden = false;
+  }
+});
 
 $("power").addEventListener("change", async (e) => {
   await send({ type: "setEnabled", enabled: e.target.checked });
@@ -54,6 +77,7 @@ $("strictPopups").addEventListener("click", async () => {
 });
 
 $("picker").addEventListener("click", async () => {
+  await send({ type: "armPicker", tabId: tab.id });
   await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["content/picker.js"] });
   window.close();
 });

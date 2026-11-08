@@ -1,5 +1,6 @@
 (() => {
   const AD_KEYS = ["adPlacements", "adSlots", "playerAds", "adBreakHeartbeatParams"];
+  const PLAYER_URL = /\/youtubei\/|\/get_video_info/;
 
   const prune = (obj) => {
     if (!obj || typeof obj !== "object") return obj;
@@ -46,7 +47,7 @@
   const origText = Response.prototype.text;
   Response.prototype.text = async function (...args) {
     const text = await origText.apply(this, args);
-    if (!/"(adPlacements|playerAds|adSlots)"/.test(text)) return text;
+    if (!PLAYER_URL.test(this.url) || !/"(adPlacements|playerAds|adSlots)"/.test(text)) return text;
     try {
       return JSON.stringify(prune(origParse(text)));
     } catch {

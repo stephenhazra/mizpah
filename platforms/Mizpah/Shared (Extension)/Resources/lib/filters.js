@@ -19,7 +19,22 @@ export const LISTS = [
   }
 ];
 
-export const ruleKey = (r) => JSON.stringify([r.action, r.condition, r.priority]);
+const sortKeys = (v) =>
+  Array.isArray(v) ? v.map(sortKeys) : v && typeof v === "object" ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortKeys(v[k])])) : v;
+
+export const ruleKey = (r) => JSON.stringify(sortKeys([r.action, r.condition, r.priority]));
+
+export function ruleHash(rule) {
+  const key = ruleKey(rule);
+  let h1 = 0x811c9dc5;
+  let h2 = key.length;
+  for (let i = 0; i < key.length; i++) {
+    const c = key.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 16777619);
+    h2 = Math.imul(h2 ^ c, 2246822507) ^ (h2 >>> 13);
+  }
+  return (h1 >>> 0).toString(36) + "." + (h2 >>> 0).toString(36);
+}
 
 const TYPE_MAP = {
   script: "script",
@@ -44,7 +59,11 @@ const TYPE_MAP = {
 };
 
 const IGNORED_OPTIONS = new Set(["genericblock", "collapse", "~collapse"]);
+const HIDE_OPTIONS = { generichide: "generic", ghide: "generic", elemhide: "elem", ehide: "elem" };
 const INVALID_SELECTOR = /:(has-text|-abp-|xpath|upward|matches-css|matches-path|matches-attr|matches-media|min-text-length|watch-attr|remove|style|others|if|if-not|nth-ancestor|contains|matches-property|remove-attr|remove-class)\b|\(\s*\)/;
+
+const UNSAFE_SELECTOR = /\/\*|\*\/|<!--|-->|[;@"']|\\$/;
+const withoutStrings = (s) => s.replace(/\\[\s\S]/g, "_").replace(/"[^"]*"|'[^']*'/g, "");
 
 const isAscii = (s) => /^[\x20-\x7e]*$/.test(s);
 const validDomain = (d) => /^[a-z0-9.-]+$/.test(d) && d.includes(".") && !d.startsWith(".") && !d.endsWith(".");
@@ -69,7 +88,7 @@ function parseCosmetic(line, sepIndex, sep) {
   const domainPart = line.slice(0, sepIndex);
   const selector = line.slice(sepIndex + sep.length).trim();
   if (!selector || INVALID_SELECTOR.test(selector) || selector.startsWith("+js(") || !isAscii(selector)) return null;
-  if (/[{}]/.test(selector)) return null;
+  if (/[{}]/.test(selector) || UNSAFE_SELECTOR.test(withoutStrings(selector))) return null;
   let domains = { include: [], exclude: [] };
   if (domainPart) {
     domains = parseDomains(domainPart, ",");
@@ -100,6 +119,7 @@ function parseNetwork(line) {
   let important = false;
   let documentLevel = false;
   let popup = false;
+  let hide = null;
 
   for (const opt of options) {
     const [rawName, ...rest] = opt.split("=");
@@ -120,6 +140,9 @@ function parseNetwork(line) {
       condition.isUrlFilterCaseSensitive = true;
     } else if (name === "important") {
       important = true;
+    } else if (name in HIDE_OPTIONS) {
+      if (!exception) return null;
+      hide = HIDE_OPTIONS[name];
     } else if (name === "popup") {
       if (!neg) popup = true;
     } else if (name === "all") {
@@ -134,6 +157,12 @@ function parseNetwork(line) {
     } else {
       return null;
     }
+  }
+
+  if (hide) {
+    const host = /^\|\|([a-z0-9.-]+)\^?$/.exec(pattern)?.[1];
+    const hosts = host ? [host] : condition.initiatorDomains;
+    return hosts && !pattern.replace(/^\|\|[a-z0-9.-]+\^?$/, "") ? { hide: { kind: hide, hosts } } : null;
   }
 
   if (pattern.startsWith("||*")) pattern = pattern.slice(2);
@@ -192,6 +221,7 @@ export function parseFilterList(text) {
       if (res) {
         if (res.rule) network.push(res.rule);
         if (res.popup) popups.push(res.popup);
+        if (res.hide) cosmetic.push({ hide: res.hide.kind, include: res.hide.hosts, exclude: [] });
         continue;
       }
     }
@@ -206,7 +236,7 @@ export function toRules(network, startId = 1) {
   const rules = [];
   let id = startId;
   for (const r of network) {
-    const key = JSON.stringify(r);
+    const key = ruleKey(r);
     if (seen.has(key)) continue;
     seen.add(key);
     rules.push({ id: id++, ...r });
@@ -220,10 +250,12 @@ export function selectorToken(selector) {
 }
 
 export function groupCosmetic(entries) {
-  const out = { generic: [], genericTokens: {}, specific: {}, exceptions: {}, genericExceptions: [] };
+  const out = { generic: [], genericTokens: {}, specific: {}, exceptions: {}, genericExceptions: [], genericHide: {}, elemHide: {} };
   const push = (map, key, sel) => (map[key] ||= []).push(sel);
   for (const e of entries) {
-    if (e.exception) {
+    if (e.hide) {
+      for (const d of e.include) out[e.hide === "elem" ? "elemHide" : "genericHide"][d] = 1;
+    } else if (e.exception) {
       if (e.include.length) e.include.forEach((d) => push(out.exceptions, d, e.selector));
       else out.genericExceptions.push(e.selector);
     } else if (e.include.length) {
@@ -242,13 +274,6 @@ export function groupCosmetic(entries) {
     else complex.push(sel);
   }
   out.generic = complex;
-  return out;
-}
-
-export function hostCandidates(hostname) {
-  const parts = hostname.toLowerCase().replace(/^www\./, "").split(".");
-  const out = [];
-  for (let i = 0; i < parts.length - 1; i++) out.push(parts.slice(i).join("."));
   return out;
 }
 

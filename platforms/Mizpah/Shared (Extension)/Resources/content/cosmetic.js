@@ -3,23 +3,9 @@
   window.__mizpahCosmetic = true;
   const hostname = location.hostname;
   if (!hostname) return;
+  const FLUSH_MS = 100;
   const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => {});
   send({ type: "cosmetic", hostname });
-
-  const intendedHref = (e) => {
-    const path = typeof e.composedPath === "function" ? e.composedPath() : [e.target];
-    const a = path.find((n) => n instanceof Element && n.matches("a[href]"));
-    if (!a) return null;
-    const r = a.getBoundingClientRect();
-    if (r.width < 4 || r.height < 4 || getComputedStyle(a).opacity === "0") return null;
-    return a.href;
-  };
-  const reportClick = (e) => {
-    if (!e.isTrusted) return;
-    send({ type: "userClick", href: intendedHref(e) });
-  };
-  document.addEventListener("click", reportClick, true);
-  document.addEventListener("auxclick", reportClick, true);
 
   const seen = new Set();
   let pending = [];
@@ -47,7 +33,7 @@
     send({ type: "cosmeticTokens", hostname, tokens });
   };
   const schedule = () => {
-    if (pending.length && !timer) timer = setTimeout(flush, 30);
+    if (pending.length && !timer) timer = setTimeout(flush, FLUSH_MS);
   };
 
   new MutationObserver((mutations) => {

@@ -6,6 +6,7 @@
   "description": "Blocks ads, trackers, pop-ups and cookie banners. Fast, private, built on EasyList with daily filter updates.",
   "permissions": [
     "declarativeNetRequest",
+    "declarativeNetRequestFeedback",
     "storage",
     "scripting",
     "unlimitedStorage",
@@ -17,7 +18,8 @@
     "<all_urls>"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "action": {
     "default_popup": "popup/popup.html",
@@ -69,5 +71,10 @@
         "path": "rules/annoyances-extra.json"
       }
     ]
+  },
+  "browser_specific_settings": {
+    "safari": {
+      "strict_min_version": "18.4"
+    }
   }
 }
