@@ -47,21 +47,21 @@
     <section>
       <h2>Trusted sites</h2>
       <p>Blocking is off on these domains and their subdomains. One per line.</p>
-      <textarea id="allowlist" rows="6" spellcheck="false" placeholder="example.com"></textarea>
+      <textarea id="allowlist" rows="6" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" placeholder="example.com"></textarea>
       <div class="bar"><button class="primary" id="saveAllowlist">Save trusted sites</button><span id="allowStatus"></span></div>
     </section>
 
     <section>
       <h2>Strict pop-up sites</h2>
       <p>Pages on these domains can't open new windows at all. One per line.</p>
-      <textarea id="strictPopupSites" rows="4" spellcheck="false" placeholder="example.com"></textarea>
+      <textarea id="strictPopupSites" rows="4" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" placeholder="example.com"></textarea>
       <div class="bar"><button class="primary" id="saveStrict">Save strict sites</button><span id="strictStatus"></span></div>
     </section>
 
     <section>
       <h2>My filters</h2>
       <p>Adblock Plus / uBlock Origin syntax. Supports <code>||domain^</code>, <code>@@</code> exceptions, <code>$third-party</code>, <code>$script</code>, <code>$domain=</code>, <code>##selector</code> and <code>site.com##selector</code>.</p>
-      <textarea id="custom" rows="12" spellcheck="false" placeholder="||annoying-ads.example^&#10;example.com##.sticky-promo"></textarea>
+      <textarea id="custom" rows="12" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" placeholder="||annoying-ads.example^&#10;example.com##.sticky-promo"></textarea>
       <div class="bar"><button class="primary" id="saveCustom">Save filters</button><span id="customStatus"></span></div>
     </section>
 
