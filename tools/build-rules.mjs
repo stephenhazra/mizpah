@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -37,7 +37,6 @@ async function loadSources({ id, sources }) {
   return texts.join("\n");
 }
 
-const cosmetic = {};
 const counts = {};
 const popup = { entries: [], adDomains: [] };
 for (const list of LISTS) {
@@ -53,13 +52,15 @@ for (const list of LISTS) {
   counts[list.id] = rules.length + extra.length;
   popup.entries.push(...parsed.popups);
   if (list.id === "ads") popup.adDomains.push(...plainAdDomains(parsed.network));
-  cosmetic[list.id] = groupCosmetic(parsed.cosmetic);
-  const specificCount = Object.values(cosmetic[list.id].specific).reduce((n, a) => n + a.length, 0);
+  const cosmetic = groupCosmetic(parsed.cosmetic);
+  await writeFile(join(root, "rules", `cosmetic-${list.id}.json`), JSON.stringify(cosmetic));
+  const tokenCount = Object.values(cosmetic.genericTokens).reduce((n, a) => n + a.length, 0);
+  const specificCount = Object.values(cosmetic.specific).reduce((n, a) => n + a.length, 0);
   console.log(
-    `${list.id}: ${rules.length + extra.length} network rules, ${cosmetic[list.id].generic.length} generic + ${specificCount} site cosmetic filters, ${parsed.skipped} unsupported skipped`
+    `${list.id}: ${rules.length + extra.length} network rules, ${cosmetic.generic.length + tokenCount} generic + ${specificCount} site cosmetic filters, ${parsed.skipped} unsupported skipped`
   );
 }
-await writeFile(join(root, "rules", "cosmetic.json"), JSON.stringify(cosmetic));
+await rm(join(root, "rules", "cosmetic.json"), { force: true });
 popup.adDomains = [...new Set(popup.adDomains)];
 await writeFile(join(root, "rules", "popup.json"), JSON.stringify(popup));
 await writeFile(join(root, "rules", "local-root.json"), JSON.stringify({ root }));

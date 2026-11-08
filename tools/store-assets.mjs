@@ -1,34 +1,18 @@
 #!/usr/bin/env node
-import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { launchChrome, sleep, DESKTOP_UA } from "./cdp.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = join(root, "store");
 const manifest = JSON.parse(readFileSync(join(root, "manifest.json"), "utf8"));
 const NAME = manifest.short_name;
 const SITE = process.argv[2] || "https://weather.com/";
-const PROFILE = mkdtempSync(join(tmpdir(), "store-assets-"));
 const WORK = mkdtempSync(join(tmpdir(), "store-compose-"));
-const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36";
 
-const chrome = spawn(process.env.CHROME_PATH || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", ["--headless=new", `--user-data-dir=${PROFILE}`, "--remote-debugging-pipe", "--enable-unsafe-extension-debugging", "--no-first-run", `--user-agent=${UA}`, "--hide-scrollbars", "about:blank"], { stdio: ["ignore", "ignore", "ignore", "pipe", "pipe"] });
-const [out, inp] = [chrome.stdio[3], chrome.stdio[4]];
-let nextId = 0, buf = "";
-const pending = new Map();
-inp.on("data", (d) => {
-  buf += d.toString();
-  let i;
-  while ((i = buf.indexOf("\0")) !== -1) {
-    const m = JSON.parse(buf.slice(0, i));
-    buf = buf.slice(i + 1);
-    if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); }
-  }
-});
-const send = (method, params = {}, sessionId) => new Promise((r) => { const id = ++nextId; pending.set(id, r); out.write(JSON.stringify({ id, method, params, sessionId }) + "\0"); });
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const { proc: chrome, profile: PROFILE, send } = launchChrome({ profilePrefix: "store-assets-", args: [`--user-agent=${DESKTOP_UA}`, "--hide-scrollbars"] });
 
 async function open(url, width, height, wait = 2500) {
   const { result: { targetId } } = await send("Target.createTarget", { url: "about:blank" });

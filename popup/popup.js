@@ -31,7 +31,12 @@ function render() {
 }
 
 async function refresh() {
-  state = await send({ type: "popupState", tabId: tab.id, url: tab.url || "" });
+  const reply = await send({ type: "popupState", tabId: tab.id, url: tab.url || "" }).catch((err) => ({ error: String(err) }));
+  if (reply?.error) {
+    $("status").textContent = `${APP_NAME} couldn't read this tab: ${reply.error}`;
+    return;
+  }
+  state = reply;
   render();
 }
 

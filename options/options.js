@@ -1,10 +1,11 @@
 import { LISTS } from "../lib/filters.js";
+import { SETTING_KEYS, coerceSettings, activeLearned } from "../lib/settings.js";
+import { parseDomainList } from "../lib/host.js";
 
 const $ = (id) => document.getElementById(id);
 const APP_NAME = chrome.runtime.getManifest().short_name;
 document.title = `${APP_NAME} Settings`;
 document.querySelectorAll(".app-name").forEach((el) => (el.textContent = APP_NAME));
-const KEYS = ["enabledLists", "allowlist", "customFilters", "youtube", "enabled", "autoUpdate", "blockPopups", "strictPopupSites"];
 
 const flash = (id, text) => {
   $(id).textContent = text;
@@ -53,9 +54,8 @@ function renderUpdate(stats) {
 }
 
 async function load() {
-  const s = await chrome.storage.local.get(KEYS);
+  const s = coerceSettings(await chrome.storage.local.get(SETTING_KEYS));
   const stats = await chrome.runtime.sendMessage({ type: "stats" });
-  const enabledLists = s.enabledLists ?? LISTS.map((l) => l.id);
 
   $("lists").replaceChildren(
     ...LISTS.map((list) => {
@@ -65,9 +65,9 @@ async function load() {
       row.querySelector("strong").textContent = list.name;
       row.querySelector("p").textContent = `${list.description} · ${stats.counts[list.id].toLocaleString()} network rules`;
       const input = row.querySelector("input");
-      input.checked = enabledLists.includes(list.id);
+      input.checked = s.enabledLists.includes(list.id);
       input.addEventListener("change", async () => {
-        const cur = new Set((await chrome.storage.local.get("enabledLists")).enabledLists ?? []);
+        const cur = new Set(coerceSettings(await chrome.storage.local.get("enabledLists")).enabledLists);
         input.checked ? cur.add(list.id) : cur.delete(list.id);
         await chrome.storage.local.set({ enabledLists: LISTS.map((l) => l.id).filter((id) => cur.has(id)) });
       });
@@ -75,21 +75,21 @@ async function load() {
     })
   );
 
-  $("youtube").checked = s.youtube ?? true;
-  $("autoUpdate").checked = s.autoUpdate ?? true;
-  $("blockPopups").checked = s.blockPopups ?? true;
-  $("strictPopupSites").value = (s.strictPopupSites ?? []).join("\n");
-  const { popupsBlocked = 0, learnedPopups = [] } = await chrome.storage.local.get(["popupsBlocked", "learnedPopups"]);
-  const learned = learnedPopups.filter((l) => l && typeof l === "object" && Date.now() - l.t < 30 * 86400000).map((l) => l.d);
+  $("youtube").checked = s.youtube;
+  $("autoUpdate").checked = s.autoUpdate;
+  $("blockPopups").checked = s.blockPopups;
+  $("strictPopupSites").value = s.strictPopupSites.join("\n");
+  const { popupsBlocked = 0, learnedPopups } = await chrome.storage.local.get(["popupsBlocked", "learnedPopups"]);
+  const learned = activeLearned(learnedPopups).map((l) => l.d);
   $("learnedInfo").textContent = learned.length
     ? `${learned.length} site${learned.length === 1 ? "" : "s"} learned from pop-ups, each forgotten after 30 days: ${learned.slice(-5).join(", ")}`
     : "None yet. Mizpah learns sites from pop-ups it closes, never sites you visit yourself.";
-  $("forgetLearned").disabled = !learnedPopups.length;
+  $("forgetLearned").disabled = !learned.length;
   $("popupInfo").textContent = `Closes pop-up and pop-under ad tabs · ${popupsBlocked.toLocaleString()} closed so far`;
   renderUpdate(stats);
   renderRebuild(stats);
-  $("allowlist").value = (s.allowlist ?? []).join("\n");
-  $("custom").value = s.customFilters ?? "";
+  $("allowlist").value = s.allowlist.join("\n");
+  $("custom").value = s.customFilters;
 }
 
 $("youtube").addEventListener("change", (e) => chrome.storage.local.set({ youtube: e.target.checked }));
@@ -105,16 +105,6 @@ $("updateNow").addEventListener("click", async () => {
   await chrome.runtime.sendMessage({ type: "refreshLists" });
   await load();
 });
-
-const parseDomainList = (text) =>
-  [
-    ...new Set(
-      text
-        .split(/\s+/)
-        .map((d) => d.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/^www\./, ""))
-        .filter((d) => /^[a-z0-9.-]+$/.test(d))
-    )
-  ].sort();
 
 $("saveAllowlist").addEventListener("click", async () => {
   const domains = parseDomainList($("allowlist").value);
@@ -137,7 +127,7 @@ $("saveCustom").addEventListener("click", async () => {
 });
 
 $("export").addEventListener("click", async () => {
-  const data = await chrome.storage.local.get(KEYS);
+  const data = await chrome.storage.local.get(SETTING_KEYS);
   const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
   const a = Object.assign(document.createElement("a"), { href: url, download: "mizpah-settings.json" });
   a.click();
@@ -146,15 +136,25 @@ $("export").addEventListener("click", async () => {
 
 $("import").addEventListener("click", () => $("importFile").click());
 $("importFile").addEventListener("change", async (e) => {
+  let data;
   try {
-    const data = JSON.parse(await e.target.files[0].text());
-    const clean = Object.fromEntries(Object.entries(data).filter(([k]) => KEYS.includes(k)));
-    await chrome.storage.local.set(clean);
-    await load();
-    flash("backupStatus", "Imported");
+    data = JSON.parse(await e.target.files[0].text());
+    if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("not an object");
   } catch {
     flash("backupStatus", `That file isn't a valid ${APP_NAME} backup`);
+    return;
   }
+  const rejected = [];
+  const settings = coerceSettings(data, rejected);
+  const clean = Object.fromEntries(SETTING_KEYS.filter((k) => k in data && !rejected.includes(k)).map((k) => [k, settings[k]]));
+  try {
+    await chrome.storage.local.set(clean);
+  } catch (err) {
+    flash("backupStatus", `Couldn't save the imported settings: ${err.message}`);
+    return;
+  }
+  await load();
+  flash("backupStatus", rejected.length ? `Imported, but skipped invalid ${rejected.join(", ")}` : "Imported");
 });
 
 load();

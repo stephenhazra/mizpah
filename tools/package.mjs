@@ -5,8 +5,20 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const INCLUDE = ["LICENSE", "THIRD_PARTY_NOTICES.md", "lib", "content", "popup", "options", "icons", "rules", "filters/ads.txt", "filters/trackers.txt", "filters/annoyances.txt"];
+const INCLUDE = ["LICENSE", "THIRD_PARTY_NOTICES.md", "lib", "background", "content", "popup", "options", "icons", "rules", "filters/ads.txt", "filters/trackers.txt", "filters/annoyances.txt"];
 const TARGETS = ["chrome", "firefox", "safari"];
+const BACKGROUND_ORDER = [
+  "lib/host.js",
+  "lib/filters.js",
+  "lib/popup.js",
+  "lib/settings.js",
+  "background/settings.js",
+  "background/apply.js",
+  "background/cosmetic.js",
+  "background/popup-guard.js",
+  "background/lists.js",
+  "background.js"
+];
 const GECKO_ID = "mizpah@stephenhazra.github.io";
 
 const args = process.argv.slice(2);
@@ -28,9 +40,10 @@ if (problems.length && !args.includes("--force")) {
 
 async function bundleBackground() {
   const parts = [];
-  for (const file of ["lib/filters.js", "lib/popup.js", "background.js"]) {
-    const src = await readFile(join(root, file), "utf8");
-    parts.push(src.replace(/^import [^;]+;\n/gm, "").replace(/^export /gm, ""));
+  for (const file of BACKGROUND_ORDER) {
+    const src = (await readFile(join(root, file), "utf8")).replace(/^import [^;]+;\n/gm, "").replace(/^export /gm, "");
+    if (/^\s*(import|export)\b/m.test(src)) throw new Error(`${file} has an import or export the bundler can't strip`);
+    parts.push(src);
   }
   return `(() => {\n${parts.join("\n")}\n})();\n`;
 }

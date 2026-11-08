@@ -126,10 +126,12 @@ The packaging script refuses to build from rules older than a week or built with
 ## Layout
 
 - `manifest.json` declares the extension.
-- `background.js` manages rulesets, dynamic rules, content-script registration and cosmetic CSS injection.
-- `lib/filters.js` is the filter parser, shared by the background worker and the build tool.
-- `filters/*.txt` holds the source filter lists, and `rules/` holds the generated rulesets.
-- `content/` holds the cosmetic loader, element picker and YouTube scripts.
+- `background.js` is the service worker entry: message handlers and lifecycle events.
+- `background/` holds the worker modules: `apply.js` (rulesets, dynamic rules, content-script registration), `cosmetic.js` (cosmetic CSS injection), `lists.js` (daily list updates and the rebuild notice), `popup-guard.js` (pop-up closing) and `settings.js` (cached settings).
+- `lib/filters.js` is the filter parser, shared by the background worker and the build tool. `lib/host.js`, `lib/popup.js` and `lib/settings.js` hold host helpers, the pop-up matcher and the settings schema.
+- `filters/*.txt` holds the source filter lists, and `rules/` holds the generated rulesets and per-list cosmetic files.
+- `content/` holds the cosmetic loader, click reporter, element picker, strict pop-up and YouTube scripts.
+- `tools/cdp.mjs` is the headless-Chrome harness shared by the smoke, real-site and store-asset scripts.
 - `popup/` and `options/` hold the UI.
 
 ## License

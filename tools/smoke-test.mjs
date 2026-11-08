@@ -1,42 +1,14 @@
 #!/usr/bin/env node
-import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { rmSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { launchChrome, sleep, waitFor } from "./cdp.mjs";
 
 const EXT_DIR = process.env.MIZPAH_DIR || join(dirname(fileURLToPath(import.meta.url)), "..");
 const WITH_REFRESH = process.argv.includes("--refresh");
 const EXPECT_REBUILD = process.argv.includes("--expect-rebuild");
-const PROFILE = mkdtempSync(join(tmpdir(), "mizpah-"));
-const CHROME = process.env.CHROME_PATH || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
-const chrome = spawn(CHROME, ["--headless=new", `--user-data-dir=${PROFILE}`, "--remote-debugging-pipe", "--enable-unsafe-extension-debugging", "--no-first-run", "about:blank"], {
-  stdio: ["ignore", "ignore", "ignore", "pipe", "pipe"]
-});
-const [out, inp] = [chrome.stdio[3], chrome.stdio[4]];
-let nextId = 0;
-let buf = "";
-const pending = new Map();
-inp.on("data", (d) => {
-  buf += d.toString();
-  let i;
-  while ((i = buf.indexOf("\0")) !== -1) {
-    const m = JSON.parse(buf.slice(0, i));
-    buf = buf.slice(i + 1);
-    if (m.id && pending.has(m.id)) {
-      pending.get(m.id)(m);
-      pending.delete(m.id);
-    }
-  }
-});
-const send = (method, params = {}, sessionId) =>
-  new Promise((r) => {
-    const id = ++nextId;
-    pending.set(id, r);
-    out.write(JSON.stringify({ id, method, params, sessionId }) + "\0");
-  });
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const { proc: chrome, profile: PROFILE, send } = launchChrome();
 
 async function attach(url) {
   const { result: { targetId } } = await send("Target.createTarget", { url });
@@ -90,7 +62,7 @@ try {
     ev(`chrome.declarativeNetRequest.testMatchOutcome({url:${JSON.stringify(url)},type:"${type}",initiator:"${initiator}",tabId:-1}).then(r=>r.matchedRules.length>0)`);
 
   check("all rulesets enabled", await ev("chrome.declarativeNetRequest.getEnabledRulesets().then(r=>r.sort())"), ["ads", "ads-extra", "annoyances", "annoyances-extra", "trackers", "trackers-extra"]);
-  check("content scripts registered", await ev("chrome.scripting.getRegisteredContentScripts().then(s=>s.map(x=>x.id))"), ["cosmetic", "yt-main", "yt-skip"]);
+  check("content scripts registered", await ev("chrome.scripting.getRegisteredContentScripts().then(s=>s.map(x=>x.id).sort())"), ["clicks", "cosmetic", "yt-main", "yt-skip"]);
   check("options page lists", await ev("document.querySelectorAll('#lists .row').length"), 3);
   check("blocks adsbygoogle.js", await match("https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"), true);
   check("blocks google-analytics", await match("https://www.google-analytics.com/analytics.js"), true);
@@ -112,7 +84,7 @@ try {
   await set({ allowlist: ["example.com"], customFilters: "||blocked-by-me.test^\n@@||ok.test^\nexample.com##.target-x\n##.weird:has-text(x)\n/regex/" });
   check("custom filter status", await ev("chrome.runtime.sendMessage({type:'customStatus'})"), { networkRules: 2, skipped: 2 });
   check("custom network rule blocks", await match("https://blocked-by-me.test/a.js"), true);
-  check("trusted site excluded from scripts", await ev("chrome.scripting.getRegisteredContentScripts().then(s=>s[0].excludeMatches)"), ["*://*.example.com/*"]);
+  check("trusted site excluded from scripts", await ev("chrome.scripting.getRegisteredContentScripts().then(s=>s.find(x=>x.id==='cosmetic').excludeMatches)"), ["*://*.example.com/*"]);
   await page.reload();
   check("no hiding on trusted site", await page.ev(PROBE), ["block", "block", "block"]);
   check("popup sees trusted site", await ev("chrome.runtime.sendMessage({type:'popupState',tabId:-1,url:'https://www.example.com/x'}).then(s=>[s.hostname,s.allowlisted])"), ["example.com", true]);
@@ -121,22 +93,29 @@ try {
   await page.reload();
   check("custom site hiding rule applies", await page.ev(`(async()=>{const a=document.createElement('div');a.className='target-x';document.body.append(a);await new Promise(r=>setTimeout(r,600));return getComputedStyle(a).display})()`), "none");
 
+  await set({ customFilters: "@@||example.com^$generichide" });
+  await page.reload();
+  check("generichide exception keeps generic hiding off", await page.ev(PROBE), ["block", "block", "block"]);
+  await set({ customFilters: "" });
+
   const { result: { targetInfos } } = await send("Target.getTargets");
   const worker = targetInfos.find((t) => t.type === "service_worker" && t.url.startsWith(`chrome-extension://${ext}/`));
   const { result: { sessionId: workerSession } } = await send("Target.attachToTarget", { targetId: worker.targetId, flatten: true });
   const sw = async (expression) => (await send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true }, workerSession)).result?.result?.value;
   await sw(`(() => {
-    globalThis.__calls = { dynamic: 0, scripts: 0 };
+    globalThis.__calls = { dynamic: 0, scripts: 0, unregister: 0 };
     const dnr = chrome.declarativeNetRequest;
     const update = dnr.updateDynamicRules.bind(dnr);
     dnr.updateDynamicRules = (o) => (__calls.dynamic++, update(o));
     const register = chrome.scripting.registerContentScripts.bind(chrome.scripting);
     chrome.scripting.registerContentScripts = (s) => (__calls.scripts++, register(s));
+    const unregister = chrome.scripting.unregisterContentScripts.bind(chrome.scripting);
+    chrome.scripting.unregisterContentScripts = (f) => (__calls.unregister++, unregister(f));
   })()`);
   await set({ customFilters: "||typed-rule.test^$script,third-party,domain=example.com" });
-  await sw("__calls.dynamic = 0");
+  await sw("Object.assign(__calls, { dynamic: 0, scripts: 0, unregister: 0 })");
   await set({ autoUpdate: false });
-  check("unchanged dynamic rules are left alone", await sw("__calls.dynamic"), 0);
+  check("unchanged rules and scripts are left alone", await sw("[__calls.dynamic, __calls.scripts, __calls.unregister]"), [0, 0, 0]);
   await set({ autoUpdate: true, customFilters: "" });
   await sw("__calls.scripts = 0");
   await ev("chrome.runtime.sendMessage({type:'toggleStrictPopups',hostname:'example.org',strict:true})");
@@ -189,7 +168,7 @@ try {
   check("new tab opened after a page click stays open", await ev(`chrome.tabs.get(${tabId}).then(() => true, () => false)`), true);
   await ev(`chrome.tabs.remove(${tabId}).catch(() => {})`);
 
-  await set({ learnedPopups: ["example.org"] });
+  await set({ learnedPopups: [{ d: "example.org", t: Date.now() }] });
   await page.reload();
   const linkBox = await page.ev(`(() => {
     const host = document.createElement("div");
@@ -204,6 +183,10 @@ try {
   const opened = await ev(`chrome.tabs.query({}).then((t) => t.filter((x) => (x.url || x.pendingUrl || "").startsWith("https://example.org")).map((x) => x.id))`);
   check("clicked link to a learned pop-up site stays open", opened.length, 1);
   for (const id of opened) await ev(`chrome.tabs.remove(${id}).catch(() => {})`);
+  const exampleOrgTabs = () => ev(`chrome.tabs.query({}).then((t) => t.filter((x) => (x.url || x.pendingUrl || "").startsWith("https://example.org")).length)`);
+  await send("Runtime.evaluate", { expression: "void window.open('https://example.org/?x=2')", userGesture: true }, page.sessionId);
+  await waitFor(async () => (await exampleOrgTabs()) > 0, { timeout: 3000 });
+  check("unclicked pop-up to a learned pop-up site is closed", await waitFor(async () => (await exampleOrgTabs()) === 0, { timeout: 8000 }), true);
   await set({ learnedPopups: [] });
   await send("Page.navigate", { url: "https://example.net/" }, page.sessionId);
   await sleep(4500);

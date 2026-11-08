@@ -1,14 +1,10 @@
 #!/usr/bin/env node
-import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { rmSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { launchChrome, sleep, DESKTOP_UA } from "./cdp.mjs";
 
 const EXT_DIR = process.env.MIZPAH_DIR || join(dirname(fileURLToPath(import.meta.url)), "..");
-const PROFILE = mkdtempSync(join(tmpdir(), "mizpah-real-"));
-const CHROME = process.env.CHROME_PATH || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36";
 const SITES = process.argv.slice(2).filter((a) => a.startsWith("http"));
 const DEFAULT_SITES = [
   "https://www.forbes.com/",
@@ -21,32 +17,7 @@ const DEFAULT_SITES = [
 ];
 const AD_HOST = /doubleclick|googlesyndication|googleadservices|google-analytics|googletagmanager|adservice\.google|amazon-adsystem|adnxs|criteo|taboola|outbrain|pubmatic|rubiconproject|openx|casalemedia|scorecardresearch|moatads|adsrvr|teads|sharethrough|33across|media\.net|quantserve|chartbeat|hotjar|facebook\.net|bat\.bing|clarity\.ms|indexww|yieldmo|smartadserver|adform|krxd|bluekai|demdex|omtrdc|permutive|id5-sync|ads\./i;
 
-const chrome = spawn(CHROME, ["--headless=new", `--user-data-dir=${PROFILE}`, "--remote-debugging-pipe", "--enable-unsafe-extension-debugging", "--no-first-run", `--user-agent=${UA}`, "--window-size=1366,900", "about:blank"], {
-  stdio: ["ignore", "ignore", "ignore", "pipe", "pipe"]
-});
-const [out, inp] = [chrome.stdio[3], chrome.stdio[4]];
-let nextId = 0;
-let buf = "";
-const pending = new Map();
-inp.on("data", (d) => {
-  buf += d.toString();
-  let i;
-  while ((i = buf.indexOf("\0")) !== -1) {
-    const m = JSON.parse(buf.slice(0, i));
-    buf = buf.slice(i + 1);
-    if (m.id && pending.has(m.id)) {
-      pending.get(m.id)(m);
-      pending.delete(m.id);
-    }
-  }
-});
-const send = (method, params = {}, sessionId) =>
-  new Promise((r) => {
-    const id = ++nextId;
-    pending.set(id, r);
-    out.write(JSON.stringify({ id, method, params, sessionId }) + "\0");
-  });
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const { proc: chrome, profile: PROFILE, send } = launchChrome({ profilePrefix: "mizpah-real-", args: [`--user-agent=${DESKTOP_UA}`, "--window-size=1366,900"] });
 const withTimeout = (p, ms) => Promise.race([p, sleep(ms).then(() => null)]);
 
 async function attach(url, wait = 2500) {
