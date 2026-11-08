@@ -79,7 +79,12 @@ async function load() {
   $("autoUpdate").checked = s.autoUpdate ?? true;
   $("blockPopups").checked = s.blockPopups ?? true;
   $("strictPopupSites").value = (s.strictPopupSites ?? []).join("\n");
-  const { popupsBlocked = 0 } = await chrome.storage.local.get("popupsBlocked");
+  const { popupsBlocked = 0, learnedPopups = [] } = await chrome.storage.local.get(["popupsBlocked", "learnedPopups"]);
+  const learned = learnedPopups.filter((l) => l && typeof l === "object" && Date.now() - l.t < 30 * 86400000).map((l) => l.d);
+  $("learnedInfo").textContent = learned.length
+    ? `${learned.length} site${learned.length === 1 ? "" : "s"} learned from pop-ups, each forgotten after 30 days: ${learned.slice(-5).join(", ")}`
+    : "None yet. Mizpah learns sites from pop-ups it closes, never sites you visit yourself.";
+  $("forgetLearned").disabled = !learnedPopups.length;
   $("popupInfo").textContent = `Closes pop-up and pop-under ad tabs · ${popupsBlocked.toLocaleString()} closed so far`;
   renderUpdate(stats);
   renderRebuild(stats);
@@ -88,6 +93,10 @@ async function load() {
 }
 
 $("youtube").addEventListener("change", (e) => chrome.storage.local.set({ youtube: e.target.checked }));
+$("forgetLearned").addEventListener("click", async () => {
+  await chrome.runtime.sendMessage({ type: "clearLearnedPopups" });
+  await load();
+});
 $("blockPopups").addEventListener("change", (e) => chrome.storage.local.set({ blockPopups: e.target.checked }));
 $("autoUpdate").addEventListener("change", (e) => chrome.storage.local.set({ autoUpdate: e.target.checked }));
 

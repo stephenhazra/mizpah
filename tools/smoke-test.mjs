@@ -52,9 +52,12 @@ async function attach(url) {
     await sleep(2500);
   };
   const click = async () => {
-    for (const type of ["mousePressed", "mouseReleased"]) await send("Input.dispatchMouseEvent", { type, x: 40, y: 40, button: "left", clickCount: 1 }, sessionId);
+    await clickAt(40, 40);
   };
-  return { ev, reload, click };
+  const clickAt = async (x, y) => {
+    for (const type of ["mousePressed", "mouseReleased"]) await send("Input.dispatchMouseEvent", { type, x, y, button: "left", clickCount: 1 }, sessionId);
+  };
+  return { ev, reload, click, clickAt, sessionId };
 }
 
 let failures = 0;
@@ -162,6 +165,26 @@ try {
   await sleep(4000);
   check("new tab opened after a page click stays open", await ev(`chrome.tabs.get(${tabId}).then(() => true, () => false)`), true);
   await ev(`chrome.tabs.remove(${tabId}).catch(() => {})`);
+
+  await set({ learnedPopups: ["example.org"] });
+  await page.reload();
+  const linkBox = await page.ev(`(() => {
+    const host = document.createElement("div");
+    document.body.prepend(host);
+    const root = host.attachShadow({ mode: "open" });
+    root.innerHTML = '<a href="https://example.org/?x=1&popunder=1" target="_blank" rel="noopener" style="display:block;width:300px;height:60px;font-size:30px">link in a web component</a>';
+    const r = root.querySelector("a").getBoundingClientRect();
+    return { x: r.left + 20, y: r.top + 20 };
+  })()`);
+  await page.clickAt(linkBox.x, linkBox.y);
+  await sleep(5000);
+  const opened = await ev(`chrome.tabs.query({}).then((t) => t.filter((x) => (x.url || x.pendingUrl || "").startsWith("https://example.org")).map((x) => x.id))`);
+  check("clicked link to a learned pop-up site stays open", opened.length, 1);
+  for (const id of opened) await ev(`chrome.tabs.remove(${id}).catch(() => {})`);
+  await set({ learnedPopups: [] });
+  await send("Page.navigate", { url: "https://example.net/" }, page.sessionId);
+  await sleep(4500);
+  check("sites you visit yourself are remembered and never learned as pop-ups", await ev("chrome.storage.local.get('visitedDomains').then((s) => Object.keys(s.visitedDomains || {}).includes('example.net'))"), true);
 
   const yt = await attach("https://www.youtube.com/");
   check("youtube ad data stripped", await yt.ev(`JSON.stringify(JSON.parse('{"adPlacements":[1],"playerAds":[2],"videoDetails":{}}'))`), '{"videoDetails":{}}');

@@ -7,10 +7,9 @@
   send({ type: "cosmetic", hostname });
 
   const intendedHref = (e) => {
-    const a = e.target?.closest?.("a[href]");
+    const path = typeof e.composedPath === "function" ? e.composedPath() : [e.target];
+    const a = path.find((n) => n instanceof Element && n.matches("a[href]"));
     if (!a) return null;
-    const newTab = /^_?blank$/i.test(a.target || "") || e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey;
-    if (!newTab) return null;
     const r = a.getBoundingClientRect();
     if (r.width < 4 || r.height < 4 || getComputedStyle(a).opacity === "0") return null;
     return a.href;

@@ -374,6 +374,9 @@ const INFERRED_POPUP_MS = 2000;
 const HAS_OPENER_EVENTS = !!chrome.webNavigation?.onCreatedNavigationTarget;
 const POPUP_HOP_LIMIT = 3;
 const LEARNED_POPUP_LIMIT = 1000;
+const LEARNED_POPUP_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const VISITED_DOMAIN_LIMIT = 3000;
+const USER_TRANSITIONS = new Set(["typed", "auto_bookmark", "generated", "keyword", "link", "form_submit", "reload", "start_page"]);
 const DYNAMIC_LIMIT = 30000;
 const DISABLED_STATIC_LIMIT = 5000;
 const REMOTE_RULE_START = 100000;
@@ -758,7 +761,7 @@ async function getPopupMatcher() {
     const bundled = await readJson("rules/popup.json");
     const { remotePopup, learnedPopups = [] } = await chrome.storage.local.get(["remotePopup", "learnedPopups"]);
     const src = remotePopup || bundled;
-    popupMatcher = compilePopupFilters(src.entries, [...src.adDomains, ...learnedPopups]);
+    popupMatcher = compilePopupFilters(src.entries, [...src.adDomains, ...activeLearned(learnedPopups).map((l) => l.d)]);
   }
   return popupMatcher;
 }
@@ -768,12 +771,36 @@ const earlyRequests = new Map();
 const lastClicks = new Map();
 const popupCounts = new Map();
 
+function activeLearned(list) {
+  return list.filter((l) => l && typeof l === "object" && Date.now() - l.t < LEARNED_POPUP_TTL_MS);
+}
+
+let visitedDomains = null;
+let visitedSaveTimer = 0;
+
+async function getVisitedDomains() {
+  if (!visitedDomains) visitedDomains = new Map(Object.entries((await chrome.storage.local.get("visitedDomains")).visitedDomains || {}));
+  return visitedDomains;
+}
+
+async function rememberVisit(url) {
+  const host = hostOf(url);
+  if (!host || !/^https?:/.test(url)) return;
+  const visited = await getVisitedDomains();
+  visited.delete(registrableDomain(host));
+  visited.set(registrableDomain(host), Date.now());
+  while (visited.size > VISITED_DOMAIN_LIMIT) visited.delete(visited.keys().next().value);
+  clearTimeout(visitedSaveTimer);
+  visitedSaveTimer = setTimeout(() => chrome.storage.local.set({ visitedDomains: Object.fromEntries(visited) }), 2000);
+}
+
 async function learnPopupDomain(domain) {
   if (!domain) return;
+  if ((await getVisitedDomains()).has(domain)) return;
   const { learnedPopups = [] } = await chrome.storage.local.get("learnedPopups");
-  if (learnedPopups.includes(domain)) return;
-  learnedPopups.push(domain);
-  await chrome.storage.local.set({ learnedPopups: learnedPopups.slice(-LEARNED_POPUP_LIMIT) });
+  const list = activeLearned(learnedPopups).filter((l) => l.d !== domain);
+  list.push({ d: domain, t: Date.now() });
+  await chrome.storage.local.set({ learnedPopups: list.slice(-LEARNED_POPUP_LIMIT) });
   popupMatcher?.domains.set(domain, true);
 }
 
@@ -787,7 +814,7 @@ async function closePopup(tabId, info, reason) {
   popupCounts.set(info.sourceTabId, (popupCounts.get(info.sourceTabId) || 0) + 1);
   const { popupsBlocked = 0 } = await chrome.storage.local.get("popupsBlocked");
   await chrome.storage.local.set({ popupsBlocked: popupsBlocked + 1, lastPopup: { url: info.firstUrl, reason, at: Date.now() } });
-  if (reason === "redirect chain") await learnPopupDomain(info.firstDomain);
+  if (reason === "redirect chain" && !info.inferred) await learnPopupDomain(info.firstDomain);
 }
 
 async function inspectPopup(tabId, url) {
@@ -804,7 +831,11 @@ async function inspectPopup(tabId, url) {
   if (!info.firstUrl) {
     info.firstUrl = url;
     info.firstDomain = domain;
-    info.intended = !!info.click && (info.click.href === url || hostOf(info.click.href) === host);
+    info.intended = !!info.click?.href && (info.click.href === url || registrableDomain(hostOf(info.click.href)) === domain);
+  }
+  if (info.intended) {
+    popupTabs.delete(tabId);
+    return;
   }
   info.domains.add(domain);
   const matcher = await getPopupMatcher();
@@ -876,6 +907,7 @@ chrome.webRequest?.onBeforeRequest.addListener(
 
 chrome.webNavigation?.onCommitted.addListener((d) => {
   if (d.frameId === 0 && popupTabs.has(d.tabId)) inspectPopup(d.tabId, d.url);
+  if (d.frameId === 0 && !trackedTabs.has(d.tabId) && (d.transitionType == null || USER_TRANSITIONS.has(d.transitionType))) rememberVisit(d.url);
   if (d.frameId === 0 && d.transitionType !== "auto_subframe") popupCounts.delete(d.tabId);
 });
 
@@ -973,6 +1005,11 @@ const handlers = {
     const local = await readJson("rules/local-root.json").catch(() => ({}));
     return { enabled, counts, listUpdate: listUpdate || null, updating: !!refreshing, extensionPath: local.root, builtAt: info.builtAt };
   },
+  async clearLearnedPopups() {
+    await chrome.storage.local.remove("learnedPopups");
+    popupMatcher = null;
+    return true;
+  },
   async refreshLists() {
     return refreshOnce();
   }
@@ -1008,7 +1045,8 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 chrome.runtime.onInstalled.addListener(async ({ reason }) => {
   if (reason === "install") await chrome.storage.local.set(DEFAULTS);
   if (reason === "update") {
-    await chrome.storage.local.remove(["remoteNetwork", "remoteDisabled", "remoteCosmetic", "remotePopup", "listUpdate"]);
+    await chrome.storage.local.remove(["remoteNetwork", "remoteDisabled", "remoteCosmetic", "remotePopup", "listUpdate", "learnedPopups"]);
+    popupMatcher = null;
     remoteCosmetic = null;
   }
   queueApply();
