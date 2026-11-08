@@ -11,58 +11,58 @@
   <main>
     <h1><img src="../icons/icon48.png" alt="" width="28" height="28"> <span><span class="app-name"></span> settings</span></h1>
 
-    <section class="banner" id="rebuildBanner" hidden>
+    <div role="status"><section class="banner" id="rebuildBanner" hidden>
       <h2>Rebuild needed</h2>
       <ul id="rebuildReasons"></ul>
       <p>Chrome only lets an extension replace its built-in rules when it is rebuilt. Run these in Terminal, then click the reload icon for <span class="app-name"></span> on <code>chrome://extensions</code>.</p>
       <pre id="rebuildCmd"></pre>
-      <div class="bar"><button id="copyCmd">Copy commands</button><span id="copyStatus"></span></div>
-    </section>
+      <div class="bar"><button id="copyCmd">Copy commands</button><span id="copyStatus" role="status"></span></div>
+    </section></div>
 
     <section>
       <h2>Filter lists</h2>
       <div class="update">
-        <div><strong>List updates</strong><p id="updateInfo">Never updated since install</p></div>
+        <div><strong>List updates</strong><p id="updateInfo" role="status">Never updated since install</p></div>
         <button id="updateNow">Update now</button>
       </div>
       <label class="row">
-        <div><strong>Update automatically</strong><p>Download fresh EasyList, EasyPrivacy and Fanboy Annoyance rules once a day.</p></div>
-        <span class="switch"><input type="checkbox" id="autoUpdate"><span></span></span>
+        <div><strong id="autoUpdateName">Update automatically</strong><p id="autoUpdateInfo">Download fresh EasyList, EasyPrivacy and Fanboy Annoyance rules once a day.</p></div>
+        <span class="switch"><input type="checkbox" id="autoUpdate" role="switch" aria-labelledby="autoUpdateName" aria-describedby="autoUpdateInfo"><span></span></span>
       </label>
       <div id="lists"></div>
       <label class="row">
-        <div><strong>Pop-up blocking</strong><p id="popupInfo">Closes pop-up and pop-under ad tabs.</p></div>
-        <span class="switch"><input type="checkbox" id="blockPopups"><span></span></span>
+        <div><strong id="blockPopupsName">Pop-up blocking</strong><p id="popupInfo">Closes pop-up and pop-under ad tabs.</p></div>
+        <span class="switch"><input type="checkbox" id="blockPopups" role="switch" aria-labelledby="blockPopupsName" aria-describedby="popupInfo"><span></span></span>
       </label>
       <div class="update">
-        <div><strong>Learned pop-up sites</strong><p id="learnedInfo">Sites Mizpah learned from pop-ups it closed.</p></div>
-        <button id="forgetLearned">Forget them</button>
+        <div><strong>Learned pop-up sites</strong><p id="learnedInfo">Clears learned pop-up sites, the recent-sites list and the pop-up count.</p></div>
+        <button id="forgetLearned">Clear learned data</button>
       </div>
       <label class="row">
-        <div><strong>YouTube ad removal</strong><p>Strips ad data from the player and skips any ads that still play.</p></div>
-        <span class="switch"><input type="checkbox" id="youtube"><span></span></span>
+        <div><strong id="youtubeName">YouTube ad removal</strong><p id="youtubeInfo">Strips ad data from the player and skips any ads that still play.</p></div>
+        <span class="switch"><input type="checkbox" id="youtube" role="switch" aria-labelledby="youtubeName" aria-describedby="youtubeInfo"><span></span></span>
       </label>
     </section>
 
     <section>
-      <h2>Trusted sites</h2>
-      <p>Blocking is off on these domains and their subdomains. One per line.</p>
-      <textarea id="allowlist" rows="6" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" placeholder="example.com"></textarea>
-      <div class="bar"><button class="primary" id="saveAllowlist">Save trusted sites</button><span id="allowStatus"></span></div>
+      <h2 id="allowHeading">Trusted sites</h2>
+      <p id="allowHelp">Blocking is off on these domains and their subdomains. One per line.</p>
+      <textarea id="allowlist" aria-labelledby="allowHeading" aria-describedby="allowHelp" rows="6" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" placeholder="example.com"></textarea>
+      <div class="bar"><button class="primary" id="saveAllowlist">Save trusted sites</button><span id="allowStatus" role="status"></span></div>
     </section>
 
     <section>
-      <h2>Strict pop-up sites</h2>
-      <p>Pages on these domains can't open new windows at all. One per line.</p>
-      <textarea id="strictPopupSites" rows="4" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" placeholder="example.com"></textarea>
-      <div class="bar"><button class="primary" id="saveStrict">Save strict sites</button><span id="strictStatus"></span></div>
+      <h2 id="strictHeading">Block all pop-ups on these sites</h2>
+      <p id="strictHelp">Pages on these domains can't open new windows at all. One per line.</p>
+      <textarea id="strictPopupSites" aria-labelledby="strictHeading" aria-describedby="strictHelp" rows="4" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" placeholder="example.com"></textarea>
+      <div class="bar"><button class="primary" id="saveStrict">Save pop-up sites</button><span id="strictStatus" role="status"></span></div>
     </section>
 
     <section>
-      <h2>My filters</h2>
-      <p>Adblock Plus / uBlock Origin syntax. Supports <code>||domain^</code>, <code>@@</code> exceptions, <code>$third-party</code>, <code>$script</code>, <code>$domain=</code>, <code>##selector</code> and <code>site.com##selector</code>.</p>
-      <textarea id="custom" rows="12" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" placeholder="||annoying-ads.example^&#10;example.com##.sticky-promo"></textarea>
-      <div class="bar"><button class="primary" id="saveCustom">Save filters</button><span id="customStatus"></span></div>
+      <h2 id="customHeading">My filters</h2>
+      <p id="customHelp">Adblock Plus / uBlock Origin syntax. Supports <code>||domain^</code>, <code>@@</code> exceptions, <code>$third-party</code>, <code>$script</code>, <code>$domain=</code>, <code>##selector</code> and <code>site.com##selector</code>.</p>
+      <textarea id="custom" aria-labelledby="customHeading" aria-describedby="customHelp" rows="12" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" placeholder="||annoying-ads.example^&#10;example.com##.sticky-promo"></textarea>
+      <div class="bar"><button class="primary" id="saveCustom">Save filters</button><span id="customStatus" role="status"></span></div>
     </section>
 
     <section>
@@ -71,8 +71,14 @@
         <button id="export">Export settings</button>
         <button id="import">Import settings</button>
         <input type="file" id="importFile" accept="application/json" hidden>
-        <span id="backupStatus"></span>
+        <span id="backupStatus" role="status"></span>
       </div>
+      <p id="backupNote">The file lists your trusted sites and custom filters, so keep it private.</p>
+    </section>
+
+    <section>
+      <h2>About</h2>
+      <p><a href="https://stephenhazra.github.io/mizpah/privacy-policy.html" target="_blank" rel="noopener">Privacy policy</a> · <a href="../THIRD_PARTY_NOTICES.md" target="_blank" rel="noopener">Third-party notices</a></p>
     </section>
   </main>
   <script src="options.js" type="module"></script>

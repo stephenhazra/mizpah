@@ -37,7 +37,7 @@ node tools/package.mjs
 tools/safari.sh
 ```
 
-The first builds the Chrome, Edge and Firefox packages. The second regenerates the Safari Xcode project. Publishing to the App Store needs a paid Apple Developer Program membership. The App Store listing, screenshots in `store/apple/` and the build and upload steps are in [store/app-store.md](store/app-store.md). Regenerate the App Store screenshots with `node tools/apple-assets.mjs`.
+The first builds the Chrome, Edge and Firefox packages. The second regenerates the Safari Xcode project; set `BUILD_NUMBER` to a number above your last upload, or it uses the current UTC time as `yymmddHHMM`. `tools/safari.sh --check` compares the committed Xcode copy of the extension with a fresh build. Versions, store limits and Apple settings are in `tools/release.config.json`. Publishing to the App Store needs a paid Apple Developer Program membership. The App Store listing, screenshots in `store/apple/` and the build and upload steps are in [store/app-store.md](store/app-store.md). Regenerate the App Store screenshots with `node tools/apple-assets.mjs`.
 
 ## Install
 
@@ -93,19 +93,33 @@ node tools/build-rules.mjs
 python3 tools/make-icons.py icons
 ```
 
+## Testing
+
+Unit tests need only Node, no install step:
+
+```bash
+node --test test/
+```
+
+They cover the filter parser, pop-up matcher, host helpers and settings validation.
+
+The smoke test loads the extension into a headless Chrome with a throwaway profile and local fixture sites, and takes about a minute. It checks rulesets, network rule semantics, cosmetic hiding, trusted sites, pause, strict pop-up sites, the pop-up guard, the popup and Settings pages, the picker and the YouTube scriptlet. It needs Chrome (set `CHROME_PATH` if it is not in the default location) and `openssl`.
+
 ```bash
 node tools/smoke-test.mjs
 ```
+
+With `--refresh` it also downloads the lists and checks the update path.
 
 ```bash
 node tools/smoke-test.mjs --refresh
 ```
 
+The real-site test loads well-known ad-heavy sites with blocking on and then paused, and compares visible ads and ad requests. It is a report, not a pass or fail test. Pass your own URLs as arguments to test other sites.
+
 ```bash
 node tools/real-test.mjs
 ```
-
-The smoke test loads the extension into a headless Chrome with a throwaway profile and checks rulesets, cosmetic hiding, trusted sites, pause, custom filters, the picker and the YouTube scriptlet. With `--refresh` it also downloads the lists and checks the update path. The real test loads well-known ad-heavy sites with blocking on and then paused, and compares visible ads and ad requests. Pass your own URLs as arguments to test other sites.
 
 ## Publishing to the Chrome Web Store
 
@@ -121,7 +135,7 @@ node tools/store-assets.mjs
 node tools/package.mjs
 ```
 
-The packaging script refuses to build from rules older than a week or built without `--remote`. It strips your local folder path and writes the upload zip to `dist/`. Store installs never show the rebuild alert, which stays on for your unpacked development copy. Listing text and permission justifications are in `store/`. The privacy policy and homepage are in `docs/`, served by GitHub Pages at https://stephenhazra.github.io/mizpah/.
+`build-rules.mjs --remote` fails when a download is missing, truncated or much smaller than the cached copy, and marks the build as remote only when every list was fetched fresh. Pass `--allow-cache` to fall back to cached lists, which `package.mjs` then refuses to package without `--force`. The packaging script refuses to build from rules older than a week or not built with `--remote`, writes `store: true` into the packaged `build-info.json`, strips your local folder path, scans every output with `tools/leak-check.mjs` for local paths, emails and Apple team IDs, and writes a reproducible upload zip to `dist/`. Pass `--keep-stage` to keep the staged folder for testing. To scan staged changes before each commit, run `ln -s ../../tools/pre-commit .git/hooks/pre-commit`. Store installs never show the rebuild alert, which stays on for your unpacked development copy. Listing text and permission justifications are in `store/`. The privacy policy and homepage are in `docs/`, served by GitHub Pages at https://stephenhazra.github.io/mizpah/.
 
 ## Layout
 
@@ -137,5 +151,7 @@ The packaging script refuses to build from rules older than a week or built with
 ## License
 
 Mizpah is licensed under the GNU General Public License v3.0. See [LICENSE](LICENSE).
+
+Copyright (c) 2026 Stephen Hazra. As the copyright holder, I permit distribution of Mizpah through the Apple App Store. Outside contributions are accepted only with a Developer Certificate of Origin sign-off (`git commit -s`) that also agrees to this App Store distribution.
 
 The bundled rules are converted from EasyList, EasyPrivacy and Fanboy's Annoyance list. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for their authors and licenses.

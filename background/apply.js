@@ -1,11 +1,16 @@
 import { LISTS, parseFilterList, toRules, groupCosmetic, ruleKey } from "../lib/filters.js";
-import { isAllowlisted } from "../lib/host.js";
+import { isAllowlisted, isSiteHost } from "../lib/host.js";
 import { readSettings } from "./settings.js";
 
 export const APP_NAME = chrome.runtime.getManifest().short_name;
 export const CUSTOM_RULE_START = 10000;
 export const REMOTE_RULE_START = 100000;
-export const DYNAMIC_LIMIT = 30000;
+const dnr = chrome.declarativeNetRequest;
+const IS_SAFARI = /Safari\//.test(navigator.userAgent) && !/Chrome\/|Chromium\//.test(navigator.userAgent);
+const SAFARI_RULE_CAP = 150000;
+const SAFARI_RULE_MARGIN = 2000;
+export const DYNAMIC_LIMIT = Math.min(30000, dnr.MAX_NUMBER_OF_DYNAMIC_RULES ?? dnr.MAX_NUMBER_OF_DYNAMIC_AND_SESSION_RULES ?? (IS_SAFARI ? 30000 : 5000));
+export const CAN_DISABLE_STATIC = typeof dnr.updateStaticRules === "function" && typeof dnr.getDisabledRuleIds === "function";
 export const DISABLED_STATIC_LIMIT = 5000;
 const ALLOWLIST_PRIORITY = 100;
 const MAX_CUSTOM_RULES = 25000;
@@ -24,6 +29,16 @@ export function customFilters(text) {
   return custom;
 }
 
+let staticCounts = null;
+
+async function dynamicBudget(settings) {
+  if (!IS_SAFARI) return DYNAMIC_LIMIT;
+  staticCounts ||= fetch(chrome.runtime.getURL("rules/build-info.json")).then((r) => r.json()).then((i) => i.counts || {}, () => ({}));
+  const counts = await staticCounts;
+  const used = settings.enabledLists.reduce((n, id) => n + (counts[id] || 0), 0);
+  return Math.max(0, Math.min(DYNAMIC_LIMIT, SAFARI_RULE_CAP - used - SAFARI_RULE_MARGIN));
+}
+
 async function applyDynamicRules(settings) {
   const rules = settings.allowlist.map((domain, i) => ({
     id: i + 1,
@@ -33,14 +48,17 @@ async function applyDynamicRules(settings) {
   }));
   rules.push(...customFilters(settings.customFilters).rules);
 
-  const { remoteNetwork = {} } = await chrome.storage.local.get("remoteNetwork");
+  const limit = await dynamicBudget(settings);
+  const { remoteNetwork = {}, remoteRetired = {} } = await chrome.storage.local.get(["remoteNetwork", "remoteRetired"]);
   let nextId = REMOTE_RULE_START;
+  const addRemote = (r) => rules.length < limit && rules.push({ id: nextId++, ...r });
   for (const id of settings.enabledLists) {
-    for (const r of remoteNetwork[id] || []) {
-      if (rules.length >= DYNAMIC_LIMIT) break;
-      rules.push({ id: nextId++, ...r });
-    }
+    for (const r of remoteRetired[id] || []) addRemote({ action: { type: "allow" }, condition: r.condition, priority: r.priority + 1 });
   }
+  for (const id of settings.enabledLists) {
+    for (const r of remoteNetwork[id] || []) addRemote(r);
+  }
+  rules.splice(limit);
 
   const desired = new Map((settings.enabled ? rules : []).map((r) => [r.id, ruleKey(r)]));
   const existing = new Map((await chrome.declarativeNetRequest.getDynamicRules()).map((r) => [r.id, ruleKey(r)]));
@@ -52,7 +70,6 @@ async function applyDynamicRules(settings) {
 }
 
 async function applyRulesets(settings) {
-  const dnr = chrome.declarativeNetRequest;
   const active = settings.enabled ? settings.enabledLists.flatMap((id) => [id, `${id}-extra`]) : [];
   const current = await dnr.getEnabledRulesets();
   await dnr.updateEnabledRulesets({
@@ -60,7 +77,7 @@ async function applyRulesets(settings) {
     disableRulesetIds: current.filter((id) => !active.includes(id))
   });
 
-  if (typeof dnr.updateStaticRules !== "function" || typeof dnr.getDisabledRuleIds !== "function") return;
+  if (!CAN_DISABLE_STATIC) return;
   const { remoteDisabled = {} } = await chrome.storage.local.get("remoteDisabled");
   const plan = [];
   let budget = DISABLED_STATIC_LIMIT;
@@ -86,7 +103,7 @@ async function applyRulesets(settings) {
 }
 
 function excludeMatchesFor(domains) {
-  return domains.filter((d) => !d.includes(":")).map((d) => (/^[\d.]+$/.test(d) ? `*://${d}/*` : `*://*.${d}/*`));
+  return domains.filter((d) => isSiteHost(d) && !d.includes(":")).map((d) => (/^[\d.]+$/.test(d) ? `*://${d}/*` : `*://*.${d}/*`));
 }
 
 function desiredScripts(settings) {

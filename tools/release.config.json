@@ -1,0 +1,16 @@
+{
+  "geckoId": "mizpah@stephenhazra.github.io",
+  "firefoxMinVersion": "128.0",
+  "firefoxStaticRuleLimit": 30000,
+  "safariMinVersion": "18.4",
+  "safariStaticRuleLimit": 120000,
+  "descriptionLimit": 112,
+  "apple": {
+    "appName": "Mizpah",
+    "bundleId": "io.github.stephenhazra.mizpah",
+    "iosDeployment": "18.4",
+    "macosDeployment": "14.0",
+    "copyrightHolder": "Stephen Hazra",
+    "firstReleaseYear": 2026
+  }
+}

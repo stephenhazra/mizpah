@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-import { mkdtempSync, rmSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, readdirSync, copyFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { launchChrome, sleep, DESKTOP_UA } from "./cdp.mjs";
+import { launchChrome, sleep, waitFor, desktopUA, openPage, stageExtension } from "./cdp.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = join(root, "store");
@@ -11,21 +11,21 @@ const manifest = JSON.parse(readFileSync(join(root, "manifest.json"), "utf8"));
 const NAME = manifest.short_name;
 const SITE = process.argv[2] || "https://weather.com/";
 const WORK = mkdtempSync(join(tmpdir(), "store-compose-"));
+const OUT = join(WORK, "out");
+mkdirSync(OUT);
+const buildInfo = JSON.parse(readFileSync(join(root, "rules", "build-info.json"), "utf8"));
+const ruleCount = (Math.floor(Object.values(buildInfo.counts).reduce((n, c) => n + c, 0) / 1000) * 1000).toLocaleString("en-US");
+const { results: resultRows } = JSON.parse(readFileSync(join(outDir, "results.json"), "utf8"));
+const EXT_DIR = stageExtension(root);
 
-const { proc: chrome, profile: PROFILE, send } = launchChrome({ profilePrefix: "store-assets-", args: [`--user-agent=${DESKTOP_UA}`, "--hide-scrollbars"] });
+const chrome = launchChrome({ profilePrefix: "store-assets-", args: ["--hide-scrollbars"] });
+const { send } = chrome;
+const UA = await desktopUA(send);
 
-async function open(url, width, height, wait = 2500) {
-  const { result: { targetId } } = await send("Target.createTarget", { url: "about:blank" });
-  const { result: { sessionId } } = await send("Target.attachToTarget", { targetId, flatten: true });
-  await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await send("Page.navigate", { url }, sessionId);
-  await sleep(wait);
-  const ev = async (expression) => (await send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true }, sessionId)).result?.result?.value;
-  const shot = async (file, clip) => {
-    const r = await send("Page.captureScreenshot", { format: "png", ...(clip ? { clip: { ...clip, scale: 1 } } : {}) }, sessionId);
-    writeFileSync(file, Buffer.from(r.result.data, "base64"));
-  };
-  return { ev, shot, targetId, sessionId };
+async function open(url, width, height, wait = 0) {
+  const page = await openPage(chrome, url, { width, height, ua: UA });
+  if (wait) await sleep(wait);
+  return page;
 }
 
 const theme = `
@@ -37,31 +37,35 @@ const page = (w, h, css, body) => `<!doctype html><html><head><meta charset="utf
 const compose = async (name, w, h, css, body) => {
   const file = join(WORK, `${name}.html`);
   writeFileSync(file, page(w, h, css, body));
-  const p = await open(`file://${file}`, w, h, 1200);
-  await p.shot(join(outDir, `${name}.png`));
-  await send("Target.closeTarget", { targetId: p.targetId });
+  const p = await open(`file://${file}`, w, h, 500);
+  await p.shot(join(OUT, `${name}.png`));
+  await p.close();
 };
 
 try {
-  const load = await send("Extensions.loadUnpacked", { path: root });
+  const load = await send("Extensions.loadUnpacked", { path: EXT_DIR });
   if (load.error) throw new Error(JSON.stringify(load.error));
   const ext = load.result.id;
   await sleep(2500);
 
-  const site = await open(SITE, 1366, 900, 12000);
+  const site = await open(SITE, 1366, 900, 3000);
   const opt = await open(`chrome-extension://${ext}/options/options.html`, 1280, 800);
   console.log("site:", await site.ev("document.title + ' | ' + location.href"));
   const tabId = await opt.ev(`chrome.tabs.query({}).then(t=>t.find(x=>(x.url||"").startsWith(${JSON.stringify(new URL(SITE).origin)}))?.id)`);
   if (!tabId) throw new Error(`could not find tab for ${SITE}`);
+  const matched = () => opt.ev(`chrome.declarativeNetRequest.getMatchedRules({tabId:${tabId}}).then(r=>r.rulesMatchedInfo.length).catch(()=>0)`);
+  if (!(await waitFor(matched, { timeout: 60000, interval: 1000 }))) throw new Error(`no requests were blocked on ${SITE}`);
+  if (/\/Users\/|\/home\//.test(await opt.ev("document.body.innerText"))) throw new Error("the options page shows a local path");
 
-  const popup = await open(`chrome-extension://${ext}/popup/popup.html?tab=${tabId}`, 300, 600, 2000);
+  const popup = await open(`chrome-extension://${ext}/popup/popup.html?tab=${tabId}`, 300, 600, 1000);
   const popupHeight = await popup.ev("Math.ceil(document.body.getBoundingClientRect().height)");
   await popup.shot(join(WORK, "popup.png"), { x: 0, y: 0, width: 300, height: popupHeight });
   const blocked = await popup.ev("document.getElementById('blocked').textContent");
-  console.log("matched:", await opt.ev(`chrome.declarativeNetRequest.getMatchedRules({tabId:${tabId}}).then(r=>r.rulesMatchedInfo.length).catch(e=>'ERR '+e.message)`), "popup shows:", blocked);
+  console.log("matched:", await matched(), "popup shows:", blocked);
+  if (!(Number(String(blocked).replace(/\D/g, "")) > 0)) throw new Error(`popup shows ${blocked} blocked requests`);
 
   await opt.ev("window.scrollTo(0,0)");
-  await opt.shot(join(outDir, "screenshot-2.png"));
+  await opt.shot(join(OUT, "screenshot-2.png"));
 
   const popupImg = `file://${join(WORK, "popup.png")}`;
   const host = new URL(SITE).hostname.replace(/^www\./, "");
@@ -76,11 +80,11 @@ try {
     img { width:360px; border-radius:16px; box-shadow:0 30px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.06); }
   `, `<div class="wrap"><div>
       <h1>Block ads, trackers<br>and pop-ups. <span>Everywhere.</span></h1>
-      <p>${NAME} uses over 110,000 rules from EasyList, EasyPrivacy and Fanboy's lists, updated daily.</p>
+      <p>${NAME} uses over ${ruleCount} rules from EasyList, EasyPrivacy and Fanboy's lists, updated daily.</p>
       <div class="stat"><b>${blocked}</b> requests blocked on ${host}, live</div>
     </div><img src="${popupImg}" alt=""></div>`);
 
-  const results = [["forbes.com", 11], ["dailymail.co.uk", 18], ["weather.com", 37], ["speedtest.net", 22], ["merriam-webster.com", 13], ["cnn.com", 11]];
+  const results = resultRows.map((r) => [r.site, r.adSlots]);
   const max = Math.max(...results.map((r) => r[1]));
   await compose("screenshot-3", 1280, 800, `
     .wrap { padding:90px 110px; }
@@ -127,11 +131,13 @@ try {
       <div class="meaning"><span>מצפה</span> · Hebrew for "watchtower"</div>
     </div><img class="shot" src="${popupImg}" alt=""></div>`);
 
+  for (const file of readdirSync(OUT)) copyFileSync(join(OUT, file), join(outDir, file));
   console.log(`Wrote screenshot-1.png, screenshot-2.png, screenshot-3.png, promo-small.png and promo-marquee.png to ${outDir} (${blocked} requests blocked on ${host})`);
 } catch (e) {
   console.error("ERROR", e.message);
   process.exitCode = 1;
+} finally {
+  await chrome.close();
+  rmSync(WORK, { recursive: true, force: true });
+  rmSync(join(root, "dist", "stage-chrome"), { recursive: true, force: true });
 }
-chrome.kill();
-rmSync(join(root, "_metadata"), { recursive: true, force: true });
-setTimeout(() => { rmSync(PROFILE, { recursive: true, force: true }); rmSync(WORK, { recursive: true, force: true }); process.exit(); }, 800);

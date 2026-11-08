@@ -1,13 +1,16 @@
-import { LISTS } from "./lib/filters.js";
+import { LISTS, parseFilterList } from "./lib/filters.js";
 import { DEFAULTS, SETTING_KEYS } from "./lib/settings.js";
-import { hostCandidates, normalizeHost, isAllowlisted, isHostname } from "./lib/host.js";
+import { hostCandidates, normalizeHost, isAllowlisted, isSiteHost, hostOf } from "./lib/host.js";
 import { getSettings, readSettings, saveSettings, forgetSettings } from "./background/settings.js";
 import { CUSTOM_RULE_START, REMOTE_RULE_START, customFilters, queueApply, applied } from "./background/apply.js";
 import { pageSelectors, tokenSelectors, insertSelectors, forgetRemoteCosmetic, forgetDocuments } from "./background/cosmetic.js";
 import { REBUILD_NOTIFICATION, REMOTE_STORAGE_KEYS, readJson, refreshOnce, isRefreshing, maybeAutoRefresh, ensureAlarm, isUpdateAlarm } from "./background/lists.js";
-import { recordClick, popupCount, forgetPopupMatcher } from "./background/popup-guard.js";
+import { recordClick, popupCount, forgetPopupMatcher, clearLearnedData } from "./background/popup-guard.js";
 
-const APPLY_KEYS = [...SETTING_KEYS, "remoteNetwork", "remoteDisabled"];
+const APPLY_KEYS = [...SETTING_KEYS, "remoteNetwork", "remoteDisabled", "remoteRetired"];
+const CONTENT_MESSAGES = new Set(["cosmetic", "cosmeticTokens", "userClick", "addFilter"]);
+const MAX_TOKENS = 5000;
+const MAX_FILTER_LENGTH = 1000;
 
 async function tabBlockedCount(tabId) {
   try {
@@ -19,7 +22,7 @@ async function tabBlockedCount(tabId) {
 }
 
 async function toggleHost(key, hostname, on) {
-  if (typeof hostname !== "string" || !isHostname(normalizeHost(hostname))) return false;
+  if (typeof hostname !== "string" || !isSiteHost(normalizeHost(hostname))) return false;
   const settings = await readSettings();
   const hosts = new Set(settings[key]);
   if (on) hosts.add(normalizeHost(hostname));
@@ -51,17 +54,43 @@ async function ruleCounts() {
   return { counts, builtAt: info.builtAt };
 }
 
+const isExtensionPage = (sender) => sender.id === chrome.runtime.id && (sender.url || "").startsWith(chrome.runtime.getURL(""));
+const pickerKey = (tabId) => `picker_${tabId}`;
+
+async function takePickerArm(tabId) {
+  const key = pickerKey(tabId);
+  const armed = (await chrome.storage.session.get(key))[key];
+  await chrome.storage.session.remove(key);
+  return !!armed;
+}
+
+function pickerFilter(line, senderHost) {
+  if (typeof line !== "string" || line.length > MAX_FILTER_LENGTH || /[\r\n]/.test(line)) return null;
+  const prefix = `${normalizeHost(senderHost)}##`;
+  if (!line.startsWith(prefix) || line.length === prefix.length) return null;
+  const parsed = parseFilterList(line);
+  return parsed.network.length === 0 && parsed.cosmetic.length === 1 ? line : null;
+}
+
 const handlers = {
   async cosmetic(msg, sender) {
-    if (!sender.tab || typeof msg.hostname !== "string") return 0;
-    return insertSelectors(sender, await pageSelectors(msg.hostname));
+    const hostname = hostOf(sender.url || "");
+    if (!sender.tab || !hostname) return 0;
+    return insertSelectors(sender, await pageSelectors(hostname));
   },
   async cosmeticTokens(msg, sender) {
-    if (!sender.tab || typeof msg.hostname !== "string" || !Array.isArray(msg.tokens)) return 0;
-    return insertSelectors(sender, await tokenSelectors(msg.hostname, msg.tokens.filter((t) => typeof t === "string")));
+    const hostname = hostOf(sender.url || "");
+    if (!sender.tab || !hostname || !Array.isArray(msg.tokens)) return 0;
+    const tokens = msg.tokens.slice(0, MAX_TOKENS).filter((t) => typeof t === "string" && /^[.#]/.test(t));
+    return insertSelectors(sender, await tokenSelectors(hostname, tokens));
   },
   async userClick(msg, sender) {
-    if (sender.tab) recordClick(sender.tab.id, msg.href);
+    if (sender.tab) await recordClick(sender, msg.href);
+    return true;
+  },
+  async armPicker({ tabId }) {
+    if (!Number.isInteger(tabId)) return false;
+    await chrome.storage.session.set({ [pickerKey(tabId)]: Date.now() });
     return true;
   },
   toggleStrictPopups: ({ hostname, strict }) => toggleHost("strictPopupSites", hostname, !!strict),
@@ -76,17 +105,22 @@ const handlers = {
       allowlisted: hostname ? isAllowlisted(hostname, settings.allowlist) : false,
       blocked: await tabBlockedCount(tabId),
       rebuild: listUpdate?.rebuild || [],
-      popupsClosed: popupCount(tabId),
+      popupsClosed: await popupCount(tabId),
       strictPopups: hostname ? isAllowlisted(hostname, settings.strictPopupSites) : false
     };
   },
   async setEnabled({ enabled }) {
-    await saveSettings({ enabled: !!enabled });
+    if (typeof enabled !== "boolean") return false;
+    await saveSettings({ enabled });
     await queueApply();
     return true;
   },
-  async addFilter({ line }) {
-    if (typeof line !== "string" || line.includes("\n")) return false;
+  async addFilter({ line }, sender) {
+    if (!isExtensionPage(sender)) {
+      if (!sender.tab || sender.frameId !== 0 || !(await takePickerArm(sender.tab.id))) return false;
+      line = pickerFilter(line, hostOf(sender.url || ""));
+    }
+    if (typeof line !== "string" || /[\r\n]/.test(line)) return false;
     const { customFilters: text } = await readSettings();
     const lines = text.split("\n").map((l) => l.trim());
     if (!lines.includes(line.trim())) lines.push(line.trim());
@@ -110,15 +144,15 @@ const handlers = {
     return { enabled, counts, listUpdate: listUpdate || null, updating: isRefreshing(), extensionPath: local.root, builtAt };
   },
   async clearLearnedPopups() {
-    await chrome.storage.local.remove("learnedPopups");
+    await clearLearnedData();
     return true;
   },
   refreshLists: () => refreshOnce()
 };
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  const handler = handlers[msg?.type];
-  if (!handler) return false;
+  const handler = Object.hasOwn(handlers, msg?.type) ? handlers[msg.type] : null;
+  if (!handler || (!isExtensionPage(sender) && !CONTENT_MESSAGES.has(msg.type))) return false;
   Promise.resolve(handler(msg, sender))
     .then(sendResponse)
     .catch((err) => sendResponse({ error: String(err) }));
@@ -152,7 +186,8 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
 chrome.runtime.onInstalled.addListener(async ({ reason }) => {
   if (reason === "install") await chrome.storage.local.set(DEFAULTS);
-  if (reason === "update") await chrome.storage.local.remove(REMOTE_STORAGE_KEYS);
+  if (reason === "update") await chrome.storage.local.remove([...REMOTE_STORAGE_KEYS, "remoteRetired", "visitedDomains", "lastPopup"]);
+  if (reason === "install") console.info("static rule headroom", await chrome.declarativeNetRequest.getAvailableStaticRuleCount?.());
   queueApply();
   ensureAlarm();
 });

@@ -1,13 +1,5 @@
-import struct, zlib, math, sys, os
-
-def shield(x, y):
-    if y < 0.12 or y > 0.95: return False
-    if y < 0.55:
-        half = 0.38
-    else:
-        t = (y - 0.55) / 0.40
-        half = 0.38 * math.sqrt(max(0.0, 1 - t * t))
-    return abs(x - 0.5) <= half
+import os
+from pngkit import shield, png, output_dir
 
 def inner_mark(x, y):
     return abs(x - 0.5) < 0.065 and 0.28 < y < 0.75
@@ -35,10 +27,9 @@ def render(size):
             row += bytes([r, g, b, int(a * 255)])
         rows.append(bytes(row))
     raw = b"".join(rows)
-    def chunk(t, d): return struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d) & 0xffffffff)
-    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 6, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b"")
+    return png(size, 6, raw)
 
-out = sys.argv[1]
+out = output_dir()
 for s in (16, 32, 48, 128):
     with open(os.path.join(out, f"icon{s}.png"), "wb") as f:
         f.write(render(s))

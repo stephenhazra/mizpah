@@ -3,7 +3,13 @@ filters/remote/
 _metadata/
 rules/local-root.json
 .DS_Store
+__pycache__/
 node_modules/
 xcuserdata/
 DerivedData/
 *.xcuserstate
+*.mobileprovision
+*.xcarchive
+*.ipa
+*.pkg
+*.dSYM

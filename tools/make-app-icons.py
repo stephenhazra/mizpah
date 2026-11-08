@@ -1,19 +1,9 @@
-import math, os, struct, sys, zlib
+import os
+from pngkit import shield, png, output_dir
 
 BG = (24, 25, 29)
 RED = (192, 57, 43)
 WHITE = (255, 255, 255)
-
-
-def shield(x, y):
-    if y < 0.12 or y > 0.95:
-        return False
-    if y < 0.55:
-        half = 0.38
-    else:
-        t = (y - 0.55) / 0.40
-        half = 0.38 * math.sqrt(max(0.0, 1 - t * t))
-    return abs(x - 0.5) <= half
 
 
 def bar(x, y):
@@ -61,13 +51,10 @@ def render(size, mac, ss):
     raw = b"".join(rows)
     ctype = 6 if mac else 2
 
-    def chunk(t, d):
-        return struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d) & 0xFFFFFFFF)
-
-    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, ctype, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b"")
+    return png(size, ctype, raw)
 
 
-out = sys.argv[1]
+out = output_dir()
 os.makedirs(out, exist_ok=True)
 with open(os.path.join(out, "universal-icon-1024@1x.png"), "wb") as f:
     f.write(render(1024, False, 2))

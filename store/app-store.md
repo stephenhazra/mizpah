@@ -16,7 +16,7 @@ Block ads, trackers & pop-ups
 
 **Secondary category:** Productivity
 
-**Content rights:** The app does not contain, show or access third-party content.
+**Content rights:** Yes, the app contains third-party content and I have the rights to use it: filter rules converted from EasyList and EasyPrivacy (GPLv3 or CC BY-SA 3.0) and Fanboy's Annoyance List (CC BY 3.0), credited in THIRD_PARTY_NOTICES.md.
 
 **Age rating:** answer "None" or "No" to every question. The result is 4+.
 
@@ -64,7 +64,7 @@ Mac: Safari › Settings › Extensions. Tick Mizpah Ad Blocker, then set Other 
 
 **Keywords** (100 max, comma-separated)
 
-adblock,ad blocker,content blocker,privacy,tracker,popup,safari,easylist,cookie,block ads
+adblock,ad blocker,content blocker,privacy,tracker,popup,safari,cookie,block ads,filter
 
 **Support URL:** https://github.com/stephenhazra/mizpah/issues
 
@@ -78,7 +78,7 @@ adblock,ad blocker,content blocker,privacy,tracker,popup,safari,easylist,cookie,
 
 ## App Privacy
 
-Choose **Data Not Collected**. Mizpah collects no data, and nothing is sent anywhere except plain downloads of the public filter lists.
+Choose **Data Not Collected**. Mizpah collects no data, and nothing is sent anywhere except plain downloads of the public filter lists. Settings, sites learned from closed pop-ups and blocked counts are stored only on the device.
 
 ## App Review information
 

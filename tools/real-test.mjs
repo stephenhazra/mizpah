@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-import { rmSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { launchChrome, sleep, DESKTOP_UA } from "./cdp.mjs";
+import { launchChrome, sleep, desktopUA, openPage } from "./cdp.mjs";
 
 const EXT_DIR = process.env.MIZPAH_DIR || join(dirname(fileURLToPath(import.meta.url)), "..");
 const SITES = process.argv.slice(2).filter((a) => a.startsWith("http"));
+const JSON_OUT = process.argv.find((a) => a.startsWith("--json="))?.split("=")[1];
 const DEFAULT_SITES = [
   "https://www.forbes.com/",
   "https://www.dailymail.co.uk/home/index.html",
@@ -17,21 +18,14 @@ const DEFAULT_SITES = [
 ];
 const AD_HOST = /doubleclick|googlesyndication|googleadservices|google-analytics|googletagmanager|adservice\.google|amazon-adsystem|adnxs|criteo|taboola|outbrain|pubmatic|rubiconproject|openx|casalemedia|scorecardresearch|moatads|adsrvr|teads|sharethrough|33across|media\.net|quantserve|chartbeat|hotjar|facebook\.net|bat\.bing|clarity\.ms|indexww|yieldmo|smartadserver|adform|krxd|bluekai|demdex|omtrdc|permutive|id5-sync|ads\./i;
 
-const { proc: chrome, profile: PROFILE, send } = launchChrome({ profilePrefix: "mizpah-real-", args: [`--user-agent=${DESKTOP_UA}`, "--window-size=1366,900"] });
-const withTimeout = (p, ms) => Promise.race([p, sleep(ms).then(() => null)]);
+const chrome = launchChrome({ profilePrefix: "mizpah-real-", args: ["--window-size=1366,900"], extDir: EXT_DIR });
+const { send } = chrome;
+const UA = await desktopUA(send);
 
-async function attach(url, wait = 2500) {
-  const { result: { targetId } } = await send("Target.createTarget", { url });
-  const { result: { sessionId } } = await send("Target.attachToTarget", { targetId, flatten: true });
-  await sleep(wait);
-  const ev = async (expression) => {
-    const r = await withTimeout(send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true }, sessionId), 30000);
-    if (!r) throw new Error("evaluate timed out");
-    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description);
-    return r.result?.result?.value;
-  };
-  const close = () => send("Target.closeTarget", { targetId });
-  return { ev, close };
+async function attach(url, settle = 2500) {
+  const page = await openPage(chrome, url, { ua: UA });
+  await sleep(settle);
+  return page;
 }
 
 const MEASURE = `(async () => {
@@ -67,7 +61,7 @@ try {
       await setEnabled(mode === "on");
       let page;
       try {
-        page = await attach(url, 9000);
+        page = await attach(url, 3000);
         const m = await page.ev(MEASURE);
         if (mode === "on") m.blocked = await blockedOn(url).catch(() => null);
         result[mode] = m;
@@ -83,16 +77,20 @@ try {
   }
   await setEnabled(true);
 
-  const yt = await attach("https://www.youtube.com/watch?v=jNQXAC9IVRw", 9000);
+  const yt = await attach("https://www.youtube.com/watch?v=jNQXAC9IVRw", 3000);
   const ytResult = await yt.ev(`(async()=>{await new Promise(r=>setTimeout(r,4000));const p=document.querySelector('#movie_player');return {player:!!p,adShowing:!!p&&p.classList.contains('ad-showing'),adPlacements:!!(window.ytInitialPlayerResponse&&(ytInitialPlayerResponse.adPlacements||ytInitialPlayerResponse.playerAds)),feedAds:document.querySelectorAll('ytd-ad-slot-renderer,ytd-in-feed-ad-layout-renderer,#player-ads').length,visibleFeedAds:[...document.querySelectorAll('ytd-ad-slot-renderer,ytd-in-feed-ad-layout-renderer,#player-ads')].filter(e=>e.offsetHeight>0).length,videoDetails:!!window.ytInitialPlayerResponse?.videoDetails}})()`);
   console.log(`youtube.com watch page (blocking ON)\n  ${JSON.stringify(ytResult)}`);
+
+        const failed = rows.filter((r) => r.on?.adRequests != null && r.off?.adRequests != null && !(r.on.adRequests < r.off.adRequests));
+  for (const r of failed) console.error(`FAIL ${r.site}: ${r.on.adRequests} ad requests with blocking, ${r.off.adRequests} without`);
+  if (failed.length) process.exitCode = 1;
+  if (JSON_OUT) {
+    writeFileSync(JSON_OUT, JSON.stringify({ results: rows.filter((r) => r.off?.adSlots != null).map((r) => ({ site: r.site, adSlots: r.off.adSlots })) }, null, 2) + "\n");
+    console.log(`Wrote ${JSON_OUT}`);
+  }
 } catch (e) {
   console.error("ERROR", e.message);
+  process.exitCode = 1;
+} finally {
+  await chrome.close();
 }
-
-chrome.kill();
-rmSync(join(EXT_DIR, "_metadata"), { recursive: true, force: true });
-setTimeout(() => {
-  rmSync(PROFILE, { recursive: true, force: true });
-  process.exit(0);
-}, 800);

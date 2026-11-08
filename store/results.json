@@ -1,0 +1,10 @@
+{
+  "results": [
+    { "site": "forbes.com", "adSlots": 11 },
+    { "site": "dailymail.co.uk", "adSlots": 18 },
+    { "site": "weather.com", "adSlots": 37 },
+    { "site": "speedtest.net", "adSlots": 22 },
+    { "site": "merriam-webster.com", "adSlots": 13 },
+    { "site": "cnn.com", "adSlots": 11 }
+  ]
+}

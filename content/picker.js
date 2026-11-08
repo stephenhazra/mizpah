@@ -6,23 +6,27 @@
   const shadow = host.attachShadow({ mode: "closed" });
   shadow.innerHTML = `
     <style>
-      .hl { position: fixed; pointer-events: none; background: rgba(192,57,43,.25); outline: 2px solid #c0392b; z-index: 2147483646; transition: all .05s; }
+      .hl { position: fixed; pointer-events: none; background: rgba(192,57,43,.25); outline: 2px solid #c0392b; box-shadow: 0 0 0 2px #fff; z-index: 2147483646; transition: all .05s; }
       .bar { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 2147483647; background: #1e1f24; color: #f2f2f2;
              font: 13px/1.4 system-ui, sans-serif; padding: 10px 12px; border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.35);
-             display: flex; gap: 8px; align-items: center; width: min(640px, calc(100vw - 32px)); box-sizing: border-box; }
-      input { flex: 1; min-width: 0; font: 12px ui-monospace, monospace; padding: 6px 8px; border-radius: 6px; border: 1px solid #444; background: #111; color: #f2f2f2; }
+             display: flex; flex-wrap: wrap; gap: 8px; align-items: center; width: min(640px, calc(100vw - 32px)); box-sizing: border-box; }
+      input { flex: 1 1 200px; min-width: 0; font: 12px ui-monospace, monospace; padding: 6px 8px; border-radius: 6px; border: 1px solid #8a8d98; background: #111; color: #f2f2f2; }
       button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 0; cursor: pointer; }
       .ok { background: #c0392b; color: #fff; }
+      button:disabled { opacity: .5; cursor: not-allowed; }
+      input:focus-visible, button:focus-visible, .bar:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+      @media (pointer: coarse) { button { min-height: 44px; } input { min-height: 44px; font-size: 16px; } }
+      @media (prefers-reduced-motion: reduce) { .hl { transition: none; } }
       .cancel { background: #3a3b42; color: #f2f2f2; }
-      .hint { opacity: .75; white-space: nowrap; }
+      .hint { opacity: .75; }
       .count { font-variant-numeric: tabular-nums; opacity: .75; white-space: nowrap; }
     </style>
     <div class="hl" hidden></div>
-    <div class="bar">
-      <span class="hint">Click an element to hide</span>
-      <input type="text" spellcheck="false" placeholder="CSS selector" hidden>
-      <span class="count" hidden></span>
-      <button class="ok" hidden>Hide</button>
+    <div class="bar" role="dialog" aria-label="Hide an element" aria-describedby="hint" tabindex="-1">
+      <span class="hint" id="hint">Click an element to hide. Or use the arrow keys to move and Enter to select.</span>
+      <input type="text" spellcheck="false" placeholder="CSS selector" aria-label="CSS selector" hidden>
+      <span class="count" role="status"></span>
+      <button class="ok" hidden>Hide element</button>
       <button class="cancel">Cancel</button>
     </div>`;
   document.documentElement.appendChild(host);
@@ -35,6 +39,8 @@
   const ok = shadow.querySelector(".ok");
   const cancel = shadow.querySelector(".cancel");
   let picking = true;
+  let current = null;
+  const previousFocus = document.activeElement;
 
   const cssEscape = (s) => (window.CSS && CSS.escape ? CSS.escape(s) : s.replace(/[^\w-]/g, "\\$&"));
   const stableClass = (c) => c && !/\d{3,}|^(is|has)-|active|hover|focus|selected|open|visible/.test(c) && c.length < 40;
@@ -86,20 +92,25 @@
   };
 
   const onMove = (e) => {
-    if (!picking || host.contains(e.target)) return;
+    if (!e.isTrusted || !picking || host.contains(e.target)) return;
+    current = e.target;
     highlight(e.target);
   };
 
-  const onClick = (e) => {
-    if (!picking || e.composedPath().includes(host)) return;
-    e.preventDefault();
-    e.stopPropagation();
+  const choose = (el) => {
     picking = false;
-    input.value = selectorFor(e.target);
-    input.hidden = count.hidden = ok.hidden = false;
+    input.value = selectorFor(el);
+    input.hidden = ok.hidden = false;
     hint.hidden = true;
     updateCount();
     input.focus();
+  };
+
+  const onClick = (e) => {
+    if (!e.isTrusted || !picking || e.composedPath().includes(host)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    choose(e.target);
   };
 
   const stop = () => {
@@ -108,11 +119,37 @@
     document.removeEventListener("keydown", onKey, true);
     host.remove();
     window.__mizpahPicker = false;
+    try {
+      previousFocus?.focus?.();
+    } catch {}
+  };
+
+  const move = (e) => {
+    const base = current || document.body;
+    const next = { ArrowUp: base.parentElement, ArrowDown: base.firstElementChild, ArrowLeft: base.previousElementSibling, ArrowRight: base.nextElementSibling }[e.key];
+    if (!next || host.contains(next)) return;
+    current = next;
+    current.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+    highlight(current);
   };
 
   const onKey = (e) => {
-    if (e.key === "Escape") stop();
-    if (e.key === "Enter" && !picking && !ok.disabled) ok.click();
+    if (!e.isTrusted) return;
+    if (e.key === "Escape") return stop();
+    const active = shadow.activeElement;
+    if (picking) {
+      if (e.key.startsWith("Arrow")) {
+        e.preventDefault();
+        e.stopPropagation();
+        move(e);
+      } else if (e.key === "Enter" && current && (!active || active === bar)) {
+        e.preventDefault();
+        e.stopPropagation();
+        choose(current);
+      }
+    } else if (e.key === "Enter" && active === input && !ok.disabled) {
+      ok.click();
+    }
   };
 
   input.addEventListener("input", updateCount);
@@ -129,4 +166,5 @@
   document.addEventListener("mousemove", onMove, true);
   document.addEventListener("click", onClick, true);
   document.addEventListener("keydown", onKey, true);
+  bar.focus();
 })();

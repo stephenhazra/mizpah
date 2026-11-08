@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, mkdirSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, readdirSync, copyFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { launchChrome, sleep, DESKTOP_UA } from "./cdp.mjs";
+import { launchChrome, sleep, waitFor, desktopUA, openPage, stageExtension } from "./cdp.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = join(root, "store", "apple");
@@ -12,21 +12,26 @@ const manifest = JSON.parse(readFileSync(join(root, "manifest.json"), "utf8"));
 const NAME = manifest.short_name;
 const SITE = process.argv[2] || "https://weather.com/";
 const WORK = mkdtempSync(join(tmpdir(), "apple-compose-"));
+const OUT = join(WORK, "out");
+mkdirSync(OUT);
+const buildInfo = JSON.parse(readFileSync(join(root, "rules", "build-info.json"), "utf8"));
+const ruleCount = (Math.floor(Object.values(buildInfo.counts).reduce((n, c) => n + c, 0) / 1000) * 1000).toLocaleString("en-US");
+const results = JSON.parse(readFileSync(join(root, "store", "results.json"), "utf8")).results.map((r) => [r.site, r.adSlots]);
+const EXT_DIR = stageExtension(root);
+const APP_PAGE = join(WORK, "app");
+mkdirSync(join(APP_PAGE, "Base.lproj"), { recursive: true });
+copyFileSync(join(root, "platforms", "apple", "Main.html"), join(APP_PAGE, "Base.lproj", "Main.html"));
+for (const name of ["Style.css", "Script.js"]) copyFileSync(join(root, "platforms", "apple", name), join(APP_PAGE, name));
+copyFileSync(join(root, "platforms", "apple", "AppIcon", "mac-icon-128@2x.png"), join(APP_PAGE, "Icon.png"));
 
-const { proc: chrome, profile: PROFILE, send } = launchChrome({ profilePrefix: "apple-assets-", args: [`--user-agent=${DESKTOP_UA}`, "--hide-scrollbars"] });
+const chrome = launchChrome({ profilePrefix: "apple-assets-", args: ["--hide-scrollbars"] });
+const { send } = chrome;
+const UA = await desktopUA(send);
 
-async function open(url, width, height, dpr = 1, wait = 2500) {
-  const { result: { targetId } } = await send("Target.createTarget", { url: "about:blank" });
-  const { result: { sessionId } } = await send("Target.attachToTarget", { targetId, flatten: true });
-  await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: dpr, mobile: false }, sessionId);
-  await send("Page.navigate", { url }, sessionId);
-  await sleep(wait);
-  const ev = async (expression) => (await send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true }, sessionId)).result?.result?.value;
-  const shot = async (file, clip) => {
-    const r = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: false, ...(clip ? { clip: { ...clip, scale: 1 } } : {}) }, sessionId);
-    writeFileSync(file, Buffer.from(r.result.data, "base64"));
-  };
-  return { ev, shot, targetId };
+async function open(url, width, height, dpr = 1, wait = 0) {
+  const page = await openPage(chrome, url, { width, height, dpr, ua: UA });
+  if (wait) await sleep(wait);
+  return page;
 }
 
 const theme = (w, h) => `
@@ -37,12 +42,10 @@ const theme = (w, h) => `
 async function compose(name, w, h, css, body) {
   const file = join(WORK, `${name}.html`);
   writeFileSync(file, `<!doctype html><html><head><meta charset="utf-8"><style>${theme(w, h)}${css}</style></head><body>${body}</body></html>`);
-  const p = await open(`file://${file}`, w, h, 1, 1500);
-  await p.shot(join(outDir, `${name}.png`));
-  await send("Target.closeTarget", { targetId: p.targetId });
+  const p = await open(`file://${file}`, w, h, 1, 500);
+  await p.shot(join(OUT, `${name}.png`));
+  await p.close();
 }
-
-const results = [["forbes.com", 11], ["dailymail.co.uk", 18], ["weather.com", 37], ["speedtest.net", 22], ["merriam-webster.com", 13], ["cnn.com", 11]];
 
 function popupScreen(w, h, img, popupW, blocked, host, k) {
   return [`
@@ -78,23 +81,26 @@ function chartScreen(w, h, k, vertical) {
 }
 
 try {
-  const load = await send("Extensions.loadUnpacked", { path: root });
+  const load = await send("Extensions.loadUnpacked", { path: EXT_DIR });
   if (load.error) throw new Error(JSON.stringify(load.error));
   const ext = load.result.id;
   await sleep(2500);
-  await open(SITE, 1366, 900, 1, 12000);
+  await open(SITE, 1366, 900, 1, 3000);
   const opt = await open(`chrome-extension://${ext}/options/options.html`, 1280, 800);
   const tabId = await opt.ev(`chrome.tabs.query({}).then(t=>t.find(x=>(x.url||"").startsWith(${JSON.stringify(new URL(SITE).origin)}))?.id)`);
   if (!tabId) throw new Error(`could not find tab for ${SITE}`);
-  const popup = await open(`chrome-extension://${ext}/popup/popup.html?tab=${tabId}`, 300, 600, 3, 2000);
+  const matched = () => opt.ev(`chrome.declarativeNetRequest.getMatchedRules({tabId:${tabId}}).then(r=>r.rulesMatchedInfo.length).catch(()=>0)`);
+  if (!(await waitFor(matched, { timeout: 60000, interval: 1000 }))) throw new Error(`no requests were blocked on ${SITE}`);
+  const popup = await open(`chrome-extension://${ext}/popup/popup.html?tab=${tabId}`, 300, 600, 3, 1000);
   const ph = await popup.ev("Math.ceil(document.body.getBoundingClientRect().height)");
   const popupPng = join(WORK, "popup.png");
   await popup.shot(popupPng, { x: 0, y: 0, width: 300, height: ph });
   const blocked = await popup.ev("document.getElementById('blocked').textContent");
+  if (!(Number(String(blocked).replace(/\D/g, "")) > 0)) throw new Error(`popup shows ${blocked} blocked requests`);
   const host = new URL(SITE).hostname.replace(/^www\./, "");
   const img = `file://${popupPng}`;
 
-  const mac = await open(`file://${encodeURI(join(root, "platforms", "Mizpah", "Shared (App)", "Resources", "Base.lproj", "Main.html"))}`, 640, 720, 2, 1500);
+  const mac = await open(`file://${encodeURI(join(APP_PAGE, "Base.lproj", "Main.html"))}`, 640, 720, 2, 1500);
   await mac.ev("show('mac', true); document.body.style.font = '15px -apple-system, system-ui, sans-serif'");
   await sleep(300);
   const macPng = join(WORK, "mac-app.png");
@@ -111,7 +117,7 @@ try {
     p { margin-top:44px; font-size:46px; line-height:1.45; color:var(--muted); max-width:1100px; }
     img { width:780px; border-radius:36px; box-shadow:0 40px 110px rgba(0,0,0,.6), 0 0 0 2px rgba(255,255,255,.06); }
   `, `<div class="wrap"><div><h1>Ads, trackers<br>and pop-ups.<br><span>Blocked in Safari.</span></h1>
-      <p>Over 110,000 rules from EasyList, EasyPrivacy and Fanboy's lists, updated daily. <b style="color:#f2f2f5">${blocked}</b> requests blocked on ${host}, live.</p></div>
+      <p>Over ${ruleCount} rules from EasyList, EasyPrivacy and Fanboy's lists, updated daily. <b style="color:#f2f2f5">${blocked}</b> requests blocked on ${host}, live.</p></div>
       <img src="${img}" alt=""></div>`);
   await compose("mac-2", 2880, 1800, ...chartScreen(2880, 1800, 1.45, false));
   await compose("mac-3", 2880, 1800, `
@@ -122,11 +128,13 @@ try {
     img { width:1060px; border-radius:36px; box-shadow:0 40px 110px rgba(0,0,0,.6); }
   `, `<div class="wrap"><div><h1>Private<br>by design.<br><span>No data collected.</span></h1>
       <p>No accounts, no analytics, no tracking. Everything runs on your Mac.</p></div><img src="file://${macPng}" alt=""></div>`);
+  for (const file of readdirSync(OUT)) copyFileSync(join(OUT, file), join(outDir, file));
   console.log(`Wrote App Store images to ${outDir} (${blocked} requests blocked on ${host})`);
 } catch (e) {
   console.error("ERROR", e.message);
   process.exitCode = 1;
+} finally {
+  await chrome.close();
+  rmSync(WORK, { recursive: true, force: true });
+  rmSync(join(root, "dist", "stage-chrome"), { recursive: true, force: true });
 }
-chrome.kill();
-rmSync(join(root, "_metadata"), { recursive: true, force: true });
-setTimeout(() => { rmSync(PROFILE, { recursive: true, force: true }); rmSync(WORK, { recursive: true, force: true }); process.exit(); }, 800);

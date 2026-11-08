@@ -14,7 +14,7 @@ Blocks ads, trackers, pop-ups and cookie banners. Fast, private, built on EasyLi
 
 **Description**
 
-Mizpah (Hebrew for "watchtower") blocks ads, trackers, pop-ups and cookie banners on every site, using the same filter lists trusted by the major ad blockers.
+Mizpah (Hebrew for "watchtower") blocks ads, trackers, pop-ups and cookie banners on every site, using the same public filter lists that other ad blockers use.
 
 WHAT IT BLOCKS
 • Ads: banner, video, sticky and native ads, including YouTube ads
@@ -37,7 +37,7 @@ YOU STAY IN CONTROL
 • Export and import your settings
 
 PRIVATE BY DESIGN
-Mizpah collects no data. No analytics, no accounts, no tracking. Everything runs on your device.
+Mizpah collects no data. No analytics, no accounts, no tracking. Everything runs on your device: your settings, the sites learned from pop-ups it closed and the blocked counts stay there, and Settings › Clear learned data removes them.
 
 ## Privacy practices tab
 
@@ -59,11 +59,9 @@ scripting: Injects the styles that hide ad elements, and the element picker the 
 
 webNavigation: Detects when a page opens a new tab, so pop-up ad tabs can be identified.
 
-webRequest: Observes the address a newly opened tab loads, so pop-up ad tabs can be closed. It does not modify or block requests.
+webRequest: Observes the redirects a newly opened tab follows, which webNavigation does not report, so pop-up ad tabs that bounce through ad servers can be closed. It does not modify or block requests.
 
 alarms: Schedules the daily filter-list update.
-
-notifications: Tells the user when filter lists need attention.
 
 Host permission (all sites): Ads and trackers appear on every site, so filtering must work wherever the user browses.
 
@@ -79,6 +77,14 @@ Host permission (all sites): Ads and trackers appear on every site, so filtering
 **Homepage URL:** https://stephenhazra.github.io/mizpah/
 
 **Support URL:** https://github.com/stephenhazra/mizpah/issues
+
+**Notes for certification (Microsoft Edge Add-ons)**
+
+Mizpah ships its filter rules as static declarativeNetRequest rulesets inside the package. Filter lists change every day and static rulesets can't be replaced after install, so once a day Mizpah downloads the public EasyList, EasyPrivacy and Fanboy's Annoyance lists and converts new entries into dynamic declarativeNetRequest rules, and disables shipped rules the lists have removed. The downloads are declarative data, not code, and are checked for format and size before use. Users can turn the daily update off in Settings. Source: https://github.com/stephenhazra/mizpah.
+
+**Notes to reviewer (Firefox Add-ons)**
+
+The source is not minified. To reproduce the package: install Node.js 20 or later, run `node tools/build-rules.mjs --remote` and then `node tools/package.mjs --target=firefox`. The xpi is written to `dist/`. The filter rules in `rules/` are generated from the public lists named above.
 
 ## Images
 

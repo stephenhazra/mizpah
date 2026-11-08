@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'">
-    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <title>Mizpah Ad Blocker</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="../Style.css">
     <script src="../Script.js" defer></script>
 </head>
@@ -21,19 +22,23 @@
                 <li>Tap <b>Mizpah Ad Blocker</b> and turn on <b>Allow Extension</b>.</li>
                 <li>Set <b>All Websites</b> to <b>Allow</b> so it can block ads everywhere.</li>
             </ol>
-            <p class="note">Open Safari and tap the puzzle-piece icon to see what was blocked or to pause Mizpah on a site.</p>
+            <p class="note">Open Safari, tap <b>aA</b> in the address bar, then tap <b>Manage Extensions</b> to check that Mizpah is on. Tap <b>Mizpah Ad Blocker</b> there to see what was blocked or to pause it on a site.</p>
         </section>
 
         <section class="platform-mac">
+            <div role="status">
             <p class="status state-unknown">Turn on Mizpah in the Extensions section of Safari Settings.</p>
-            <p class="status state-on"><span class="dot on"></span>Mizpah is on in Safari.</p>
-            <p class="status state-off"><span class="dot off"></span>Mizpah is off. Turn it on in the Extensions section of Safari Settings.</p>
+            <p class="status state-on"><span class="dot on" aria-hidden="true"></span>Mizpah is on in Safari.</p>
+            <p class="status state-off"><span class="dot off" aria-hidden="true"></span>Mizpah is off. Turn it on in the Extensions section of Safari Settings.</p>
+            </div>
             <ol>
                 <li>Tick <b>Mizpah Ad Blocker</b> in Safari Settings › Extensions.</li>
                 <li>Click <b>Edit Websites…</b> and set <b>Other Websites</b> to <b>Allow</b>.</li>
             </ol>
-            <button class="open-preferences">Quit and Open Safari Settings…</button>
+            <button class="open-preferences">Open Safari Settings…</button>
+            <p class="note">Mizpah quits when Safari Settings opens.</p>
         </section>
+        <p class="note"><a href="https://stephenhazra.github.io/mizpah/privacy-policy.html">Privacy policy</a></p>
     </main>
 </body>
 </html>
