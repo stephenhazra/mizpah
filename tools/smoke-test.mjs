@@ -121,6 +121,29 @@ try {
   await page.reload();
   check("custom site hiding rule applies", await page.ev(`(async()=>{const a=document.createElement('div');a.className='target-x';document.body.append(a);await new Promise(r=>setTimeout(r,600));return getComputedStyle(a).display})()`), "none");
 
+  const { result: { targetInfos } } = await send("Target.getTargets");
+  const worker = targetInfos.find((t) => t.type === "service_worker" && t.url.startsWith(`chrome-extension://${ext}/`));
+  const { result: { sessionId: workerSession } } = await send("Target.attachToTarget", { targetId: worker.targetId, flatten: true });
+  const sw = async (expression) => (await send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true }, workerSession)).result?.result?.value;
+  await sw(`(() => {
+    globalThis.__calls = { dynamic: 0, scripts: 0 };
+    const dnr = chrome.declarativeNetRequest;
+    const update = dnr.updateDynamicRules.bind(dnr);
+    dnr.updateDynamicRules = (o) => (__calls.dynamic++, update(o));
+    const register = chrome.scripting.registerContentScripts.bind(chrome.scripting);
+    chrome.scripting.registerContentScripts = (s) => (__calls.scripts++, register(s));
+  })()`);
+  await set({ customFilters: "||typed-rule.test^$script,third-party,domain=example.com" });
+  await sw("__calls.dynamic = 0");
+  await set({ autoUpdate: false });
+  check("unchanged dynamic rules are left alone", await sw("__calls.dynamic"), 0);
+  await set({ autoUpdate: true, customFilters: "" });
+  await sw("__calls.scripts = 0");
+  await ev("chrome.runtime.sendMessage({type:'toggleStrictPopups',hostname:'example.org',strict:true})");
+  await sleep(500);
+  check("one apply per settings change", await sw("__calls.scripts"), 1);
+  await ev("chrome.runtime.sendMessage({type:'toggleStrictPopups',hostname:'example.org',strict:false})");
+
   await set({ enabled: false });
   check("pause clears everything", await ev("Promise.all([chrome.declarativeNetRequest.getEnabledRulesets(),chrome.scripting.getRegisteredContentScripts(),chrome.declarativeNetRequest.getDynamicRules()]).then(([a,b,c])=>[a.length,b.length,c.length])"), [0, 0, 0]);
 

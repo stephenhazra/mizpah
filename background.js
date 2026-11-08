@@ -33,6 +33,7 @@ const REBUILD_NOTIFICATION = "rebuild-needed";
 const ALLOWLIST_PRIORITY = 100;
 const CUSTOM_RULE_START = 10000;
 const MAX_CUSTOM_RULES = 25000;
+const APPLY_DEBOUNCE_MS = 50;
 
 let bundledCosmetic = null;
 let remoteCosmetic = null;
@@ -211,10 +212,15 @@ async function applyAll() {
   await chrome.action.setTitle({ title: settings.enabled ? APP_NAME : `${APP_NAME} (paused)` });
 }
 
-let applying = Promise.resolve();
+let applyChain = Promise.resolve();
+let scheduledApply = null;
 function queueApply() {
-  applying = applying.then(applyAll).catch((err) => console.error("apply failed", err));
-  return applying;
+  scheduledApply ||= new Promise((resolve) => setTimeout(resolve, APPLY_DEBOUNCE_MS)).then(() => {
+    scheduledApply = null;
+    applyChain = applyChain.then(applyAll).catch((err) => console.error("apply failed", err));
+    return applyChain;
+  });
+  return scheduledApply;
 }
 
 async function cosmeticContext(hostname) {
@@ -630,7 +636,7 @@ const handlers = {
     return true;
   },
   async customStatus() {
-    await applying;
+    await (scheduledApply || applyChain);
     const dynamic = await chrome.declarativeNetRequest.getDynamicRules();
     return { networkRules: dynamic.filter((r) => r.id >= CUSTOM_RULE_START).length, skipped: customErrors };
   },
