@@ -4,12 +4,27 @@
   const hostname = location.hostname;
   if (!hostname) return;
   const FLUSH_MS = 100;
-  const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => {});
-  send({ type: "cosmetic", hostname });
-
   const seen = new Set();
   let pending = [];
   let timer = 0;
+  let observer = null;
+
+  const stop = () => {
+    observer?.disconnect();
+    clearTimeout(timer);
+    timer = 0;
+    pending = [];
+  };
+  const send = (msg) => {
+    try {
+      if (!globalThis.chrome?.runtime?.id) return stop();
+      chrome.runtime.sendMessage(msg).catch(() => {});
+    } catch {
+      stop();
+    }
+  };
+  send({ type: "cosmetic", hostname });
+  if (!globalThis.chrome?.runtime?.id) return;
 
   const add = (token) => {
     if (seen.has(token)) return;
@@ -36,13 +51,14 @@
     if (pending.length && !timer) timer = setTimeout(flush, FLUSH_MS);
   };
 
-  new MutationObserver((mutations) => {
+  observer = new MutationObserver((mutations) => {
     for (const m of mutations) {
       if (m.type === "attributes") collect(m.target);
       else for (const n of m.addedNodes) scan(n);
     }
     schedule();
-  }).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ["class", "id"] });
+  });
+  observer.observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ["class", "id"] });
 
   if (document.documentElement) scan(document.documentElement);
   schedule();

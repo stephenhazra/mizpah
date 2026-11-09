@@ -47,7 +47,7 @@ try {
 const TLS_PORT = tlsServer?.address().port;
 
 const chrome = launchChrome({ extDir: EXT_DIR, args: [`--host-resolver-rules=MAP *.test 127.0.0.1:${PORT},MAP *.youtube.com 127.0.0.1:${TLS_PORT || PORT}`, "--ignore-certificate-errors"] });
-const { proc, profile: PROFILE, send } = chrome;
+const { proc, profile: PROFILE, send, events } = chrome;
 
 const OPENER = "http://opener.test/";
 const results = [];
@@ -659,6 +659,36 @@ try {
     rmSync(copy, { recursive: true, force: true });
     return [version, left];
   }, ["999.0.0", { allowlist: ["kept.test"] }]);
+
+  await check("content scripts stay quiet after the extension reloads under an open page", async () => {
+    const copy = mkdtempSync(join(tmpdir(), "mizpah-reload-"));
+    cpSync(stageExtension(EXT_DIR), copy, { recursive: true });
+    const loaded = await send("Extensions.loadUnpacked", { path: copy });
+    if (loaded.error) throw new Error(JSON.stringify(loaded.error));
+    const id = loaded.result.id;
+    await sleep(1500);
+    const tab = await attach("http://reload.test/");
+    const errors = [];
+    const onError = (m) => {
+      const d = m.params.exceptionDetails;
+      if (m.sessionId === tab.sessionId && `${d.url} ${d.exception?.description}`.includes(id)) errors.push(d.exception?.description?.split("\n")[0]);
+    };
+    events.on("Runtime.exceptionThrown", onError);
+    await send("Runtime.enable", {}, tab.sessionId);
+    const churn = (tag) => tab.ev(`(async()=>{for(let i=0;i<5;i++){const d=document.createElement('div');d.className='${tag}'+i;document.body.append(d);await new Promise(r=>setTimeout(r,150))}return true})()`);
+    await churn("before");
+    const reloaded = await send("Extensions.loadUnpacked", { path: copy });
+    if (reloaded.result?.id !== id) throw new Error(`reload gave ${JSON.stringify(reloaded)}`);
+    await sleep(1500);
+    await churn("after");
+    await tab.clickAt(20, 20);
+    await sleep(800);
+    events.off("Runtime.exceptionThrown", onError);
+    await tab.close();
+    await send("Extensions.uninstall", { id }).catch(() => {});
+    rmSync(copy, { recursive: true, force: true });
+    return errors;
+  }, []);
 
   // YouTube on a local fixture served as www.youtube.com
 

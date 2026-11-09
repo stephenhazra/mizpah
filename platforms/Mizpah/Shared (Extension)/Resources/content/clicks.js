@@ -17,7 +17,16 @@
   };
   const reportClick = (e) => {
     if (!e.isTrusted || (e.type === "auxclick" && e.button !== 1)) return;
-    chrome.runtime.sendMessage({ type: "userClick", href: intendedHref(e) }).catch(() => {});
+    try {
+      if (!globalThis.chrome?.runtime?.id) return detach();
+      chrome.runtime.sendMessage({ type: "userClick", href: intendedHref(e) }).catch(() => {});
+    } catch {
+      detach();
+    }
+  };
+  const detach = () => {
+    document.removeEventListener("click", reportClick, true);
+    document.removeEventListener("auxclick", reportClick, true);
   };
   document.addEventListener("click", reportClick, true);
   document.addEventListener("auxclick", reportClick, true);

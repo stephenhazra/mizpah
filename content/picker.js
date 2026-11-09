@@ -158,7 +158,11 @@
     const selector = input.value.trim();
     const hostname = location.hostname.replace(/^www\./, "");
     document.querySelectorAll(selector).forEach((el) => el.style.setProperty("display", "none", "important"));
-    chrome.runtime.sendMessage({ type: "addFilter", line: `${hostname}##${selector}` }).catch((err) => console.warn("could not save filter", err));
+    try {
+      chrome.runtime.sendMessage({ type: "addFilter", line: `${hostname}##${selector}` }).catch((err) => console.warn("could not save filter", err));
+    } catch (err) {
+      console.warn("could not save filter", err);
+    }
     stop();
   });
   bar.addEventListener("click", (e) => e.stopPropagation());
