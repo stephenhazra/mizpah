@@ -17,3 +17,7 @@ body.paused .site { opacity: .55; }
 .popups { color: var(--muted); font-size: 12px; }
 .actions .wide { grid-column: span 2; }
 .actions .wide.on { border-color: var(--accent); color: var(--accent-fg); }
+@media (pointer: coarse) {
+  body { width: auto; }
+  main { max-width: 560px; margin: 0 auto; }
+}
