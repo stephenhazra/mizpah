@@ -30,6 +30,14 @@ if (Date.now() - info.builtAt > 7 * 86400000) problems.push("rules are over a we
 if (manifest.description.length > config.descriptionLimit) problems.push(`manifest description is ${manifest.description.length} chars, the Safari limit is ${config.descriptionLimit}`);
 if (manifest.update_url) problems.push("manifest must not contain update_url");
 if (targets.includes("safari") && !/^\d+(\.\d+){0,2}$/.test(manifest.version)) problems.push(`version ${manifest.version} is not up to three integers, which Safari requires`);
+if (manifest.externally_connectable) problems.push("manifest must not declare externally_connectable (Chrome warns when it is empty)");
+for (const dir of ["background.js", "background", "lib", "popup", "options", "content"]) {
+  const out = spawnSync("grep", ["-rlE", "onMessageExternal|onConnectExternal", join(root, dir)], { encoding: "utf8" }).stdout.trim();
+  if (out) {
+    console.error(`External messaging listeners need an externally_connectable allowlist first:\n${out}`);
+    process.exit(1);
+  }
+}
 if (problems.length && !args.includes("--force")) {
   console.error("Not packaging:\n- " + problems.join("\n- ") + "\nRe-run with --force to package anyway.");
   process.exit(1);
@@ -58,7 +66,6 @@ function manifestFor(target) {
   m.permissions = m.permissions.filter((p) => p !== "notifications");
   if (target === "chrome") return m;
   delete m.minimum_chrome_version;
-  delete m.externally_connectable;
   if (target === "firefox") {
     m.background = { scripts: ["background.js"], type: "module" };
     m.options_ui = { page: m.options_page, open_in_tab: true };
