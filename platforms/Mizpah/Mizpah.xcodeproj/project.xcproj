@@ -234,18 +234,18 @@
       "kind": "group",
       "name": "Products",
       "children": [
-        { "path": "<PRODUCTS>/Mizpah.app", "id": "6FB3B33330A16978004E95E0", "type": "wrapper.application", "index": false },
-        { "path": "<PRODUCTS>/Mizpah.app", "id": "6FB3B34530A16978004E95E0", "type": "wrapper.application", "index": false },
-        { "path": "<PRODUCTS>/Mizpah Extension.appex", "id": "6FB3B35130A16978004E95E0", "type": "wrapper.app-extension", "index": false, "target-membership": [ { "build-phase": "Mizpah (iOS)/copy/Embed Foundation Extensions", "header-preservation": "remove-on-copy" } ] },
-        { "path": "<PRODUCTS>/Mizpah Extension.appex", "id": "6FB3B35B30A16978004E95E0", "type": "wrapper.app-extension", "index": false, "target-membership": [ { "build-phase": "Mizpah (macOS)/copy/Embed Foundation Extensions", "header-preservation": "remove-on-copy" } ] },
+        { "path": "<PRODUCTS>/Mizpah.app", "id": "6F60FBA530A172300005A947", "type": "wrapper.application", "index": false },
+        { "path": "<PRODUCTS>/Mizpah.app", "id": "6F60FBB730A172300005A947", "type": "wrapper.application", "index": false },
+        { "path": "<PRODUCTS>/Mizpah Extension.appex", "id": "6F60FBC330A172300005A947", "type": "wrapper.app-extension", "index": false, "target-membership": [ { "build-phase": "Mizpah (iOS)/copy/Embed Foundation Extensions", "header-preservation": "remove-on-copy" } ] },
+        { "path": "<PRODUCTS>/Mizpah Extension.appex", "id": "6F60FBCD30A172300005A947", "type": "wrapper.app-extension", "index": false, "target-membership": [ { "build-phase": "Mizpah (macOS)/copy/Embed Foundation Extensions", "header-preservation": "remove-on-copy" } ] },
       ],
     },
   ],
   "targets": [
     {
       "name": "Mizpah (iOS)",
-      "id": "6FB3B33230A16978004E95E0",
-      "product": "id:6FB3B33330A16978004E95E0",
+      "id": "6F60FBA430A172300005A947",
+      "product": "id:6F60FBA530A172300005A947",
       "product-type": "application",
       "dependencies": [
         "Mizpah Extension (iOS)",
@@ -264,7 +264,7 @@
         "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
         "ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME": "AccentColor",
         "CODE_SIGN_STYLE": "Automatic",
-        "CURRENT_PROJECT_VERSION": "2611090237",
+        "CURRENT_PROJECT_VERSION": "2611090314",
         "GENERATE_INFOPLIST_FILE": "YES",
         "INFOPLIST_FILE": "iOS (App)/Info.plist",
         "INFOPLIST_KEY_CFBundleDisplayName": "Mizpah",
@@ -302,8 +302,8 @@
       },
     }, {
       "name": "Mizpah (macOS)",
-      "id": "6FB3B34430A16978004E95E0",
-      "product": "id:6FB3B34530A16978004E95E0",
+      "id": "6F60FBB630A172300005A947",
+      "product": "id:6F60FBB730A172300005A947",
       "product-type": "application",
       "dependencies": [
         "Mizpah Extension (macOS)",
@@ -322,7 +322,7 @@
         "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
         "ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME": "AccentColor",
         "CODE_SIGN_STYLE": "Automatic",
-        "CURRENT_PROJECT_VERSION": "2611090237",
+        "CURRENT_PROJECT_VERSION": "2611090314",
         "ENABLE_APP_SANDBOX": "YES",
         "ENABLE_HARDENED_RUNTIME": "YES",
         "GENERATE_INFOPLIST_FILE": "YES",
@@ -358,8 +358,8 @@
       },
     }, {
       "name": "Mizpah Extension (iOS)",
-      "id": "6FB3B35030A16978004E95E0",
-      "product": "id:6FB3B35130A16978004E95E0",
+      "id": "6F60FBC230A172300005A947",
+      "product": "id:6F60FBC330A172300005A947",
       "product-type": "app-extension",
       "build-phases": [
         "compile-sources",
@@ -368,7 +368,7 @@
       ],
       "build-settings": {
         "CODE_SIGN_STYLE": "Automatic",
-        "CURRENT_PROJECT_VERSION": "2611090237",
+        "CURRENT_PROJECT_VERSION": "2611090314",
         "GENERATE_INFOPLIST_FILE": "YES",
         "INFOPLIST_FILE": "iOS (Extension)/Info.plist",
         "INFOPLIST_KEY_CFBundleDisplayName": "Mizpah Extension",
@@ -397,8 +397,8 @@
       },
     }, {
       "name": "Mizpah Extension (macOS)",
-      "id": "6FB3B35A30A16978004E95E0",
-      "product": "id:6FB3B35B30A16978004E95E0",
+      "id": "6F60FBCC30A172300005A947",
+      "product": "id:6F60FBCD30A172300005A947",
       "product-type": "app-extension",
       "build-phases": [
         "compile-sources",
@@ -407,7 +407,7 @@
       ],
       "build-settings": {
         "CODE_SIGN_STYLE": "Automatic",
-        "CURRENT_PROJECT_VERSION": "2611090237",
+        "CURRENT_PROJECT_VERSION": "2611090314",
         "ENABLE_APP_SANDBOX": "YES",
         "ENABLE_HARDENED_RUNTIME": "YES",
         "GENERATE_INFOPLIST_FILE": "YES",

@@ -86,7 +86,8 @@ $("picker").addEventListener("click", async () => {
   window.close();
 });
 
-$("reload").addEventListener("click", () => {
+$("reload").addEventListener("click", async () => {
+  await send({ type: "waitApplied" }).catch(() => {});
   chrome.tabs.reload(tab.id);
   window.close();
 });

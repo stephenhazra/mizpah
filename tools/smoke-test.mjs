@@ -465,6 +465,19 @@ try {
   await popupUi.reload();
   await waitFor(async () => (await popupState()).host === "opener.test", { timeout: 8000, interval: 100 });
   await check("popup hides the closed-pop-up line when none were closed", async () => (await popupState()).popupsHidden, true);
+  await check("popup: trusting a site answers before slow rule updates finish", async () => {
+    await sw("(()=>{const d=chrome.declarativeNetRequest,f=d.updateDynamicRules;globalThis.__fastDnr=f;d.updateDynamicRules=(o)=>new Promise((r)=>setTimeout(r,4000)).then(()=>f(o));return true})()");
+    const start = Date.now();
+    await popupClick("toggleSite");
+    await waitFor(async () => (await popupState()).toggleOff, { timeout: 6000, interval: 50 });
+    const fast = Date.now() - start < 2000;
+    await settle();
+    await sw("(chrome.declarativeNetRequest.updateDynamicRules=globalThis.__fastDnr,true)");
+    await popupClick("toggleSite");
+    await waitFor(async () => !(await popupState()).toggleOff, { timeout: 6000, interval: 100 });
+    await settle();
+    return [fast, await dynamicCount()];
+  }, [true, 0]);
   await check("popup: trusting a site flips the button and applies rules", async () => {
     await popupClick("toggleSite");
     await waitFor(async () => (await popupState()).toggleOff, { timeout: 6000, interval: 100 });

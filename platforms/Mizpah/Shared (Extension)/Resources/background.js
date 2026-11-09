@@ -28,7 +28,7 @@ async function toggleHost(key, hostname, on) {
   if (on) hosts.add(normalizeHost(hostname));
   else for (const h of hostCandidates(hostname)) hosts.delete(h);
   await saveSettings({ [key]: [...hosts].sort() });
-  await queueApply();
+  queueApply();
   return true;
 }
 
@@ -112,7 +112,7 @@ const handlers = {
   async setEnabled({ enabled }) {
     if (typeof enabled !== "boolean") return false;
     await saveSettings({ enabled });
-    await queueApply();
+    queueApply();
     return true;
   },
   async addFilter({ line }, sender) {
@@ -126,6 +126,10 @@ const handlers = {
     if (!lines.includes(line.trim())) lines.push(line.trim());
     await saveSettings({ customFilters: lines.filter(Boolean).join("\n") });
     await queueApply();
+    return true;
+  },
+  async waitApplied() {
+    await applied();
     return true;
   },
   async customStatus() {
