@@ -1,2 +1,4 @@
 #!/bin/sh
-exec node "$(git rev-parse --show-toplevel)/tools/leak-check.mjs" --staged
+script="$(git rev-parse --show-toplevel)/tools/leak-check.mjs"
+[ -f "$script" ] || script="$(cd "$(git rev-parse --git-common-dir)/.." && pwd)/tools/leak-check.mjs"
+exec node "$script" --staged

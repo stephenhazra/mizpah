@@ -4,13 +4,15 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchChrome, sleep, waitFor, desktopUA, openPage, stageExtension } from "./cdp.mjs";
+import { startDemoSite } from "./demo-site.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = join(root, "store", "apple");
 mkdirSync(outDir, { recursive: true });
 const manifest = JSON.parse(readFileSync(join(root, "manifest.json"), "utf8"));
 const NAME = manifest.short_name;
-const SITE = process.argv[2] || "https://weather.com/";
+const demo = await startDemoSite();
+const SITE = process.argv[2] || demo.url;
 const WORK = mkdtempSync(join(tmpdir(), "apple-compose-"));
 const OUT = join(WORK, "out");
 mkdirSync(OUT);
@@ -24,7 +26,7 @@ copyFileSync(join(root, "platforms", "apple", "Main.html"), join(APP_PAGE, "Base
 for (const name of ["Style.css", "Script.js"]) copyFileSync(join(root, "platforms", "apple", name), join(APP_PAGE, name));
 copyFileSync(join(root, "platforms", "apple", "AppIcon", "mac-icon-128@2x.png"), join(APP_PAGE, "Icon.png"));
 
-const chrome = launchChrome({ profilePrefix: "apple-assets-", args: ["--hide-scrollbars"] });
+const chrome = launchChrome({ profilePrefix: "apple-assets-", args: ["--hide-scrollbars", ...(process.argv[2] ? [] : demo.chromeArgs)] });
 const { send } = chrome;
 const UA = await desktopUA(send);
 
@@ -97,7 +99,7 @@ try {
   await popup.shot(popupPng, { x: 0, y: 0, width: 300, height: ph });
   const blocked = await popup.ev("document.getElementById('blocked').textContent");
   if (!(Number(String(blocked).replace(/\D/g, "")) > 0)) throw new Error(`popup shows ${blocked} blocked requests`);
-  const host = new URL(SITE).hostname.replace(/^www\./, "");
+  const host = process.argv[2] ? new URL(SITE).hostname.replace(/^www\./, "") : "a demo news page";
   const img = `file://${popupPng}`;
 
   const mac = await open(`file://${encodeURI(join(APP_PAGE, "Base.lproj", "Main.html"))}`, 640, 720, 2, 1500);
@@ -135,6 +137,7 @@ try {
   process.exitCode = 1;
 } finally {
   await chrome.close();
+  demo.close();
   rmSync(WORK, { recursive: true, force: true });
   rmSync(join(root, "dist", "stage-chrome"), { recursive: true, force: true });
 }

@@ -13,3 +13,4 @@ DerivedData/
 *.ipa
 *.pkg
 *.dSYM
+platforms/team.local

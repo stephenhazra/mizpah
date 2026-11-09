@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-import { rmSync, mkdtempSync, readFileSync } from "node:fs";
+import { rmSync, mkdtempSync, readFileSync, writeFileSync, cpSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { createServer } from "node:http";
 import { createServer as createTlsServer } from "node:https";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { launchChrome, sleep, waitFor } from "./cdp.mjs";
+import { launchChrome, sleep, waitFor, stageExtension } from "./cdp.mjs";
 
 const EXT_DIR = process.env.MIZPAH_DIR || join(dirname(fileURLToPath(import.meta.url)), "..");
 const WITH_REFRESH = process.argv.includes("--refresh");
@@ -548,7 +548,104 @@ try {
     await ev(`chrome.scripting.executeScript({target:{tabId:${pageTabId}},files:['content/picker.js']})`);
     return page.ev("!!document.querySelector('mizpah-picker')");
   }, true);
-  await set({ enabledLists: ["ads", "trackers", "annoyances"] });
+  await set({ enabledLists: ["ads", "trackers", "annoyances"], customFilters: "" });
+
+  const pressEnter = async () => {
+    for (const type of ["keyDown", "keyUp"]) await send("Input.dispatchKeyEvent", { type, key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, ...(type === "keyDown" ? { text: "\r" } : {}) }, page.sessionId);
+  };
+  const pickTarget = async (arm) => {
+    await page.reload();
+    await page.ev(`(()=>{const d=document.createElement('div');d.id='pick-me';d.textContent='pick';d.style.cssText='position:fixed;left:40px;top:200px;width:200px;height:80px;background:#ccc;z-index:2147483000';document.body.append(d);return true})()`);
+    if (arm) await ev(`chrome.runtime.sendMessage({type:'armPicker',tabId:${pageTabId}})`);
+    await ev(`chrome.scripting.executeScript({target:{tabId:${pageTabId}},files:['content/picker.js']})`);
+    await page.clickAt(100, 230);
+    await sleep(150);
+    await pressEnter();
+  };
+  const customText = async () => (await ev("chrome.storage.local.get('customFilters')")).customFilters;
+  await check("picker: an armed pick saves one site filter and hides the element", async () => {
+    await pickTarget(true);
+    await waitFor(async () => (await customText()) !== "", { timeout: 4000, interval: 100 });
+    return [await customText(), await page.ev("getComputedStyle(document.getElementById('pick-me')).display")];
+  }, ["opener.test###pick-me", "none"]);
+  await set({ customFilters: "" });
+  await check("picker: a pick without arming from the popup is ignored", async () => {
+    await pickTarget(false);
+    await sleep(800);
+    return customText();
+  }, "");
+  const fromContent = (msg) =>
+    ev(`chrome.scripting.executeScript({target:{tabId:${pageTabId}},func:(m)=>chrome.runtime.sendMessage(m).then((r)=>r??'no reply',(e)=>'rejected'),args:[${JSON.stringify(msg)}]}).then(r=>r[0].result)`);
+  await check("content scripts can't add filters for other sites or reuse an arm", async () => {
+    await ev(`chrome.runtime.sendMessage({type:'armPicker',tabId:${pageTabId}})`);
+    const other = await fromContent({ type: "addFilter", line: "other.test##div" });
+    await ev(`chrome.runtime.sendMessage({type:'armPicker',tabId:${pageTabId}})`);
+    const network = await fromContent({ type: "addFilter", line: "opener.test##div\n||ads.test^" });
+    await ev(`chrome.runtime.sendMessage({type:'armPicker',tabId:${pageTabId}})`);
+    const first = await fromContent({ type: "addFilter", line: "opener.test##.once" });
+    const again = await fromContent({ type: "addFilter", line: "opener.test##.twice" });
+    return [other, network, first, again, await customText()];
+  }, [false, false, true, false, "opener.test##.once"]);
+  await set({ customFilters: "" });
+  await check("content scripts can't call settings messages", async () => [
+    await fromContent({ type: "setEnabled", enabled: false }),
+    (await ev("chrome.storage.local.get('enabled')")).enabled
+  ], ["no reply", true]);
+
+  // Settings import
+
+  const importBackup = (data, answer) =>
+    ev(`(async()=>{window.confirm=()=>${answer};const dt=new DataTransfer();dt.items.add(new File([${JSON.stringify(JSON.stringify(data))}],'b.json',{type:'application/json'}));
+      const i=document.getElementById('importFile');i.files=dt.files;document.getElementById('backupStatus').textContent='';i.dispatchEvent(new Event('change'));return true})()`);
+  await check("import: declining the confirmation changes nothing", async () => {
+    await importBackup({ allowlist: ["imported.test"] }, false);
+    await sleep(500);
+    return (await ev("chrome.storage.local.get('allowlist')")).allowlist;
+  }, []);
+  await check("import: valid keys apply and invalid ones are reported", async () => {
+    await importBackup({ strictPopupSites: ["imported.test"], allowlist: ["imported.test", "com"], blockPopups: "yes", unknown: 1 }, true);
+    await waitFor(async () => (await ev("document.getElementById('backupStatus').textContent")) !== "", { timeout: 4000, interval: 50 });
+    const stored = await ev("chrome.storage.local.get(['strictPopupSites','allowlist','blockPopups','unknown'])");
+    return [[stored.strictPopupSites, stored.allowlist, stored.blockPopups, stored.unknown ?? null], await ev("document.getElementById('backupStatus').textContent")];
+  }, [[["imported.test"], [], true, null], "Imported, but skipped invalid allowlist, blockPopups"]);
+  await set({ strictPopupSites: [] });
+
+  // Update cleanup on a staged copy
+
+  await check("an update clears downloaded rules and old browsing data", async () => {
+    const copy = mkdtempSync(join(tmpdir(), "mizpah-update-"));
+    cpSync(stageExtension(EXT_DIR), copy, { recursive: true });
+    const loaded = await send("Extensions.loadUnpacked", { path: copy });
+    if (loaded.error) throw new Error(JSON.stringify(loaded.error));
+    const id = loaded.result.id;
+    await sleep(1500);
+    const url = `chrome-extension://${id}/options/options.html`;
+    const before = await attach(url);
+    await before.ev(`chrome.storage.local.set({remoteNetwork:{ads:[]},remoteRetired:{ads:[]},visitedDomains:{'a.test':1},lastPopup:{},allowlist:['kept.test']})`);
+    const manifestFile = join(copy, "manifest.json");
+    const manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
+    writeFileSync(manifestFile, JSON.stringify({ ...manifest, version: "999.0.0" }));
+    await before.close();
+    const reloaded = await send("Extensions.loadUnpacked", { path: copy });
+    if (reloaded.result?.id !== id) throw new Error(`reload gave ${JSON.stringify(reloaded)}`);
+    await sleep(1500);
+    const after = await attach(url);
+    await waitFor(async () => {
+      const ok = await after.ev("typeof chrome.storage?.local?.get === 'function'").catch(() => false);
+      if (!ok) await after.reload().catch(() => {});
+      return ok;
+    }, { timeout: 15000, interval: 500 });
+    const keys = ["remoteNetwork", "remoteRetired", "visitedDomains", "lastPopup", "allowlist"];
+    const left = await waitFor(async () => {
+      const got = await after.ev(`chrome.storage.local.get(${JSON.stringify(keys)})`);
+      return Object.keys(got).length === 1 ? got : null;
+    }, { timeout: 8000, interval: 200 });
+    const version = await after.ev("chrome.runtime.getManifest().version");
+    await after.close();
+    await send("Extensions.uninstall", { id }).catch(() => {});
+    rmSync(copy, { recursive: true, force: true });
+    return [version, left];
+  }, ["999.0.0", { allowlist: ["kept.test"] }]);
 
   // YouTube on a local fixture served as www.youtube.com
 

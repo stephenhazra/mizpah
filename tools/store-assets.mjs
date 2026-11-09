@@ -4,12 +4,14 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchChrome, sleep, waitFor, desktopUA, openPage, stageExtension } from "./cdp.mjs";
+import { startDemoSite } from "./demo-site.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = join(root, "store");
 const manifest = JSON.parse(readFileSync(join(root, "manifest.json"), "utf8"));
 const NAME = manifest.short_name;
-const SITE = process.argv[2] || "https://weather.com/";
+const demo = await startDemoSite();
+const SITE = process.argv[2] || demo.url;
 const WORK = mkdtempSync(join(tmpdir(), "store-compose-"));
 const OUT = join(WORK, "out");
 mkdirSync(OUT);
@@ -18,7 +20,7 @@ const ruleCount = (Math.floor(Object.values(buildInfo.counts).reduce((n, c) => n
 const { results: resultRows } = JSON.parse(readFileSync(join(outDir, "results.json"), "utf8"));
 const EXT_DIR = stageExtension(root);
 
-const chrome = launchChrome({ profilePrefix: "store-assets-", args: ["--hide-scrollbars"] });
+const chrome = launchChrome({ profilePrefix: "store-assets-", args: ["--hide-scrollbars", ...(process.argv[2] ? [] : demo.chromeArgs)] });
 const { send } = chrome;
 const UA = await desktopUA(send);
 
@@ -68,7 +70,7 @@ try {
   await opt.shot(join(OUT, "screenshot-2.png"));
 
   const popupImg = `file://${join(WORK, "popup.png")}`;
-  const host = new URL(SITE).hostname.replace(/^www\./, "");
+  const host = process.argv[2] ? new URL(SITE).hostname.replace(/^www\./, "") : "a demo news page";
 
   await compose("screenshot-1", 1280, 800, `
     .wrap { display:flex; align-items:center; justify-content:space-between; height:100%; padding:0 110px; gap:60px; }
@@ -138,6 +140,7 @@ try {
   process.exitCode = 1;
 } finally {
   await chrome.close();
+  demo.close();
   rmSync(WORK, { recursive: true, force: true });
   rmSync(join(root, "dist", "stage-chrome"), { recursive: true, force: true });
 }

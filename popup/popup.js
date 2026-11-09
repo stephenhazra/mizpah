@@ -32,10 +32,14 @@ function render() {
   $("status").textContent = !state.enabled ? "Blocking is paused everywhere" : state.hostname && state.allowlisted ? "Hide an element and pop-up blocking are unavailable on trusted sites" : "";
 }
 
+const sitePattern = () => {
+  const u = new URL(tab.url);
+  return `${u.protocol}//${u.hostname}/*`;
+};
+
 async function checkHostAccess() {
   if (!state?.hostname || !state.enabled || state.allowlisted) return;
-  const origin = `${new URL(tab.url).origin}/*`;
-  const granted = await chrome.permissions.contains({ origins: [origin] }).catch(() => true);
+  const granted = await chrome.permissions.contains({ origins: [sitePattern()] }).catch(() => true);
   $("hostAccess").hidden = granted;
 }
 
@@ -51,7 +55,7 @@ async function refresh() {
 }
 
 $("grantAccess").addEventListener("click", async () => {
-  const granted = await chrome.permissions.request({ origins: [`${new URL(tab.url).origin}/*`] }).catch(() => false);
+  const granted = await chrome.permissions.request({ origins: [sitePattern()] }).catch(() => false);
   if (granted) {
     $("hostAccess").hidden = true;
     $("note").hidden = false;

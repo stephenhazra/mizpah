@@ -23,4 +23,4 @@ xcrun safari-web-extension-converter dist/safari \
   --swift --copy-resources --no-open --no-prompt --force
 python3 tools/apple-setup.py
 node tools/leak-check.mjs platforms
-echo "Open platforms/$NAME/$NAME.xcodeproj in Xcode, choose your team under Signing, then use Product > Archive for each scheme. Do not commit DEVELOPMENT_TEAM changes."
+echo "Run tools/apple-archive.sh to archive both apps. It reads your team ID from APPLE_TEAM_ID or platforms/team.local, so the project never stores it."

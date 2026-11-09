@@ -37,7 +37,7 @@ node tools/package.mjs
 tools/safari.sh
 ```
 
-The first builds the Chrome, Edge and Firefox packages. The second regenerates the Safari Xcode project; set `BUILD_NUMBER` to a number above your last upload, or it uses the current UTC time as `yymmddHHMM`. `tools/safari.sh --check` compares the committed Xcode copy of the extension with a fresh build. Versions, store limits and Apple settings are in `tools/release.config.json`. Publishing to the App Store needs a paid Apple Developer Program membership. The App Store listing, screenshots in `store/apple/` and the build and upload steps are in [store/app-store.md](store/app-store.md). Regenerate the App Store screenshots with `node tools/apple-assets.mjs`.
+The first builds the Chrome, Edge and Firefox packages. The second regenerates the Safari Xcode project; set `BUILD_NUMBER` to a number above your last upload, or it uses the current UTC time as `yymmddHHMM`. `tools/safari.sh --check` compares the committed Xcode copy of the extension with a fresh build. `tools/apple-archive.sh` archives the iOS and macOS apps; it takes your Apple team ID from `APPLE_TEAM_ID` or the gitignored `platforms/team.local`, so the ID is never written into the project. Versions, store limits and Apple settings are in `tools/release.config.json`. Publishing to the App Store needs a paid Apple Developer Program membership. The App Store listing, screenshots in `store/apple/` and the build and upload steps are in [store/app-store.md](store/app-store.md). Regenerate the App Store screenshots with `node tools/apple-assets.mjs`.
 
 ## Install
 

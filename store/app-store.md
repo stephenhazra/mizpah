@@ -108,9 +108,8 @@ Upload from `store/apple/`:
 
 1. Accept any pending agreements at https://developer.apple.com/account and in App Store Connect under Business.
 2. Run `tools/safari.sh` to regenerate the Xcode project with the App Store settings.
-3. Open `platforms/Mizpah/Mizpah.xcodeproj` in Xcode and choose your team under Signing & Capabilities for all four targets.
-4. Choose the **Mizpah (iOS)** scheme with **Any iOS Device**, then Product › Archive. In the Organizer, click Distribute App › App Store Connect.
-5. Repeat with the **Mizpah (macOS)** scheme and **Any Mac**.
-6. In App Store Connect, attach both builds to version 1.0.0, add the screenshots, and submit for review.
+3. Put your Apple team ID in `platforms/team.local` (gitignored) or set `APPLE_TEAM_ID`, then run `tools/apple-archive.sh`. It archives both apps into `dist/apple` without writing the team ID into the project.
+4. Open each archive in Xcode's Organizer (Window › Organizer) and click Distribute App › App Store Connect.
+5. In App Store Connect, attach both builds to version 1.0.0, add the screenshots, and submit for review.
 
 For later versions, raise `version` in `manifest.json` and set a higher build number, for example `BUILD_NUMBER=2 tools/safari.sh`.
